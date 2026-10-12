@@ -33,3 +33,11 @@ Android 签名脚本允许显式证书别名，改版指定 `zhuoyiwan-android`�
 构建时间增加，任一平台或设备门禁失败都会保留草稿并阻止发布。Actions 状态和摘要核对才构成云端交付事实，本地编译不是发布完成。工作流 actionlint、来源脚本的来源/摘要/草稿恢复拒绝测试在 Windows 仓通过；实际运行与最终下载链接记录在 GitHub Release。
 
 本机 Windows quick 已运行但失败，原 HEAD 对照证实账号命名、主题共享标题、同步信号路由、剪贴板大小文本检查和语音默认配置检查已有失败，另外存在 fcntl、Unix 路径和 pipe-only 工具链限制；没有新增 known-failures 豁免。语音默认检查随后与 Android 改版实际配置对齐，设备 client-core 仍完整执行。示例资源视图在 Windows 用文件复制替代无条件 Unix symlink；input-runtime 的 JSON 测试显式导入宏，仅 Unix socket 用例按平台编译。引擎 all-targets 与 runtime lib/tests 编译通过。全量引擎本机曾有 1785 通过、16 失败、14 ignored，剩余失败都在原 HEAD 基线复现；Actions Linux 引擎 1830 通过、0 失败、14 ignored，Clippy 通过。
+
+## Verification
+
+[三端 r6](https://github.com/zhuoyiwan/msime-windows/releases/tag/zhuoyiwan-20261013-r6)由 [38300269632](https://github.com/zhuoyiwan/msime-windows/actions/runs/38300269632) 的同一次完整构建发布，11 个 job 全部成功。二进制源码固定为 Windows `8f1f56150121f34baee80a5f21ecdb75cfc30fc2`、Android/Mac `6c665fe7f613244e8ed5d40c743483803a279c55`，后续笔记提交不改写产物来源。
+
+API 28/35 client-core 各 1305 测试通过；装包输入、真实长句/多错第一页选择、软件主题/词库恢复与模拟语音 final 提交通过。API 35 标准偏好、图片字节/权限、邮箱、键盘高度与物理键盘候选等通过，既有 `FuzzyPinyinDeviceSmoke` 跳过项明确打印，不新增跳过。Mac universal、四项 CTest、本机证书生成与严格签名、IMK 注册查询入口通过，普通用户真实登录会话仍未验收。
+
+公开后全部七个资产下载字节与 GitHub digest、校验文件、固定来源和同 run 对齐；实际 APK 的证书、ARM64、versionCode 3006 与改版版本再次核对。最新本机 quick 的 Rust workspace 编译、默认配置契约通过，整体仍因已有契约与 Windows 平台限制失败；独立 `pnpm run verify-notes` 实际校验 638 篇，不能把 Git Bash 路径导致的 0 篇结果当作通过。
