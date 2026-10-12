@@ -8,6 +8,13 @@ source_app="${MSIME_LOCAL_SOURCE_APP:-$source_dir/MSIME.app}"
 destination_root="${MSIME_LOCAL_APPLICATIONS_DIR:-$HOME/Applications}"
 destination="$destination_root/MSIME-zhuoyiwan.app"
 keychain="${MSIME_LOCAL_KEYCHAIN:-$(security default-keychain -d user | sed 's/^[[:space:]]*"//;s/"[[:space:]]*$//')}"
+ci_noninteractive="${MSIME_LOCAL_CI_NONINTERACTIVE:-0}"
+if [ "$ci_noninteractive" = 1 ]; then
+  # 只有专用 CI 钥匙串允许无人确认；普通用户仍通过系统确认信任。
+  [ "${MSIME_LOCAL_VERIFY_ONLY:-0}" = 1 ]
+  : "${MSIME_LOCAL_KEYCHAIN:?CI 必须指定临时钥匙串}"
+  : "${MSIME_LOCAL_KEYCHAIN_PASSWORD:?CI 必须指定临时钥匙串密码}"
+fi
 
 if [ "$(uname -s)" != Darwin ] || [ ! -d "$source_app/Contents" ]; then
   echo "请在 Mac 上挂载 DMG，再从 DMG 内运行本脚本。"
@@ -60,7 +67,13 @@ CONFIG
     -name "$identity_name" -out "$work/local.p12" -passout env:MSIME_LOCAL_P12_PASSWORD
   security import "$work/local.p12" -k "$keychain" -P "$MSIME_LOCAL_P12_PASSWORD" -T /usr/bin/codesign
   unset MSIME_LOCAL_P12_PASSWORD
-  security add-trusted-cert -r trustRoot -p codeSign -k "$keychain" "$work/certificate.pem"
+  if [ "$ci_noninteractive" = 1 ]; then
+    security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+      -k "$MSIME_LOCAL_KEYCHAIN_PASSWORD" "$keychain" >/dev/null
+    sudo -n security add-trusted-cert -d -r trustRoot -p codeSign -k "$keychain" "$work/certificate.pem"
+  else
+    security add-trusted-cert -r trustRoot -p codeSign -k "$keychain" "$work/certificate.pem"
+  fi
   identity="$(openssl x509 -in "$work/certificate.pem" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d ':')"
 fi
 

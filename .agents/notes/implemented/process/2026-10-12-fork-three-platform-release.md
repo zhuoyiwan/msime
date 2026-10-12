@@ -8,9 +8,11 @@ Windows C++ 工程不能改配置后成为 macOS InputMethodKit 输入法。用�
 
 ## Decision
 
-Android 与 Mac 源码固定在用户自己的 msime fork 分支，Windows 工作流按完整提交 SHA 获取 Mac 源码并调用原生 package-release.sh。三端发布在 zhuoyiwan/msime-windows：先暂存已验收的 Windows r6 和 Android r4，Mac 构建成功、校验产物后再公开 Release。不推送上游、不更新上游 Homebrew tap，也不进入 Windows main 自动发布链。
+Android 与 Mac 源码固定在用户自己的 msime fork 分支，Windows 工作流按完整提交 SHA 获取 Mac 源码并调用原生 package-release.sh。三端发布在 zhuoyiwan/msime-windows：先暂存已验收的 Windows r7 和 Android r4，Mac 构建成功、校验产物后再公开 Release。不推送上游、不更新上游 Homebrew tap，也不进入 Windows main 自动发布链。
 
 Mac 包明确为无 Apple 公证的本机安装版。随 DMG 带安装脚本：在当前用户钥匙串建立仅用于本机输入法的自签名代码证书、用户信任、重签名自己的 App 副本并启动设置宿主。保留原生设置的词库准备与输入源安装流程；不关闭全局 Gatekeeper。真实 Mac 输入源注册验收与 CI 编译必须分别报告，不能把签名检查当成打字验收。
+
+CI 用专用临时钥匙串、明确的 verify-only 模式和管理员信任设置验证同一脚本的证书生成与签名路径，避免普通用户信任弹窗在无人值守 runner 上无限等待。此模式必须显式指定临时钥匙串及密码，不改变默认用户安装的确认流程。DMG 在验证之前先作为原始构建 artifact 保存，证书检查有步骤超时，失败时仍可检查原始产物。
 
 ## Related decisions
 
@@ -22,7 +24,7 @@ Mac 包明确为无 Apple 公证的本机安装版。随 DMG 带安装脚本：�
 
 ## Verification
 
-设置前端类型检查及生产构建、安装脚本 bash 语法、macOS 打包资源契约与发布工作流 actionlint 通过。Mac 原生构建、DMG 签名与本机签名路径由本次 GitHub Actions 执行；普通用户真实 Mac 输入源注册仍未验收。Windows r6、Android r4 的 SHA-256 与已交付包一致。三端 Release 公开前核对工作流结果与安装包资产。
+设置前端类型检查及生产构建、安装脚本 bash 语法、macOS 打包资源契约与发布工作流 actionlint 通过。运行 38210362225 的原生 universal 构建与四项打包测试通过，但在导入证书后的用户信任调用停住，取消后日志仍有 security 进程；CI 专用无人值守信任路径由后续运行验证，普通用户真实 Mac 输入源注册仍未验收。Windows r7、Android r4 的 SHA-256 与已交付包一致。三端 Release 公开前核对工作流结果与安装包资产。
 
 ## Consequences
 
