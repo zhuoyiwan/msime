@@ -192,6 +192,7 @@ public final class KeyboardFragment extends HomeTabFragment {
         row(typing, PageId.TYPING, R.drawable.ic_ms_text_fields);
         row(typing, PageId.EXPRESSION, R.drawable.ic_ms_translate);
         row(typing, PageId.LEXICON, R.drawable.ic_ms_menu_book);
+        row(typing, PageId.LAN_CLIPBOARD, R.drawable.ic_ms_content_paste);
         HomeNavGroup other = HomeNavGroup.add(rows);
         row(other, PageId.VOICE, R.drawable.ic_ms_mic);
         row(other, PageId.HANDWRITING, R.drawable.ic_ms_edit);

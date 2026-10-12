@@ -24,6 +24,7 @@ import org.json.JSONObject;
 final class AppThemeSheet {
     /** 应用主题的取值与显示名，顺序即面板顺序；与 Rust `AppTheme` 的序列化值一致。 */
     static final String[][] THEMES = {
+        {"wallpaper", "壁纸取色（Monet）"},
         {"siji", "水杉四季（自动）"}, {"chunya", "春芽"}, {"xiayin", "夏荫"}, {"qiushan", "秋杉"}, {"dongxue", "冬雪"},
     };
     private static final String[][] MODES = {
@@ -52,7 +53,7 @@ final class AppThemeSheet {
         LinearLayout root = LayoutPolicy.column(context);
         root.addView(LayoutPolicy.sheetDragHandle(context));
 
-        LinearLayout header = SheetHeaderView.create(context, "应用主题", "四季会随季节自动更换配色");
+        LinearLayout header = SheetHeaderView.create(context, "应用主题", "壁纸取色随设备配色变化；四季随季节变化");
 
         // 颜色模式：键盘和本应用的浅色 / 深色，与应用主题的季节无关。
         String mode = preferences == null ? AppMode.SYSTEM : AppMode.of(preferences);
@@ -109,7 +110,8 @@ final class AppThemeSheet {
     private static void saveAppTheme(Fragment host, String id, Runnable refresh) {
         HostTask.run(host, context -> {
             try {
-                AndroidLocalSettings.put(context, AndroidLocalSettings.APP_THEME, id);
+                if (!"wallpaper".equals(id)) AndroidLocalSettings.put(context, AndroidLocalSettings.APP_THEME, id);
+                AndroidLocalSettings.put(context, AndroidLocalSettings.WALLPAPER_COLORS, "wallpaper".equals(id));
             } catch (java.io.IOException | IllegalArgumentException error) {
                 return null;
             }
@@ -131,12 +133,13 @@ final class AppThemeSheet {
     }
 
     private static String theme(Context context) {
+        if (AndroidLocalSettings.load(context).bool(AndroidLocalSettings.WALLPAPER_COLORS)) return "wallpaper";
         return AndroidLocalSettings.load(context).choice(AndroidLocalSettings.APP_THEME);
     }
 
     private static String label(String theme) {
         for (String[] entry : THEMES) if (entry[0].equals(theme)) return entry[1];
-        return THEMES[0][1];
+        return "水杉四季（自动）";
     }
 
     /** Rust 解析出的季节（spring / summer / autumn / winter）的中文名；没有缓存时是基础主题的秋杉。 */

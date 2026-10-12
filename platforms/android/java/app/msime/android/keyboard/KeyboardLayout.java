@@ -167,9 +167,9 @@ public final class KeyboardLayout {
     public static final float LAYER_RETURN_WEIGHT = 1.9f;
 
     /**
-     * 新设计的 123 层：1–0 / 十个符号 / `#+=` + 五个标点 + ⌫ / 拼音（或 ABC）| 😀 | 空格 | ↵。
+     * 电话式数字层：123 / 456 / 789 三行，右侧操作列，底部返回字母、小数点、0 和换行。
      *
-     * @param chinese 中文模式用全角符号与中文标点，英文模式用 ASCII 版，底行返回键为「ABC」
+     * @param chinese 中文模式返回键为「拼音」，英文模式为「ABC」
      */
     public static List<List<LayerKey>> numberLayer(boolean chinese) {
         return numberLayer(chinese, chinese);
@@ -177,11 +177,36 @@ public final class KeyboardLayout {
 
     /** `chinese` 决定左下返回键是「拼音」还是「ABC」；`chinesePunctuation` 决定标点和符号用全角中文还是半角英文，跟「中文标点」开关走。两者分开：中文模式下关掉中文标点时，这一层要上屏半角标点。 */
     public static List<List<LayerKey>> numberLayer(boolean chinese, boolean chinesePunctuation) {
-        return layer(NUMBER_DIGITS,
-            chinesePunctuation ? CHINESE_NUMBER_SYMBOLS : ENGLISH_NUMBER_SYMBOLS,
-            new LayerKey("#+=", "更多符号", LayerKeyKind.LAYER_TOGGLE, LAYER_EDGE_WEIGHT),
-            chinese, chinesePunctuation,
-            new LayerKey("😀", "表情", LayerKeyKind.EMOJI, LAYER_EMOJI_WEIGHT));
+        return numberLayer(chinese, chinesePunctuation, KeyboardArrangementPolicy.PHONE,
+            KeyboardArrangementPolicy.DEFAULT_DIGITS);
+    }
+
+    public static List<List<LayerKey>> numberLayer(boolean chinese, boolean chinesePunctuation,
+                                                  String preset, String customDigits) {
+        if (KeyboardArrangementPolicy.ROW.equals(preset)) {
+            return layer(NUMBER_DIGITS, chinesePunctuation ? CHINESE_NUMBER_SYMBOLS : ENGLISH_NUMBER_SYMBOLS,
+                new LayerKey("#+=", "更多符号", LayerKeyKind.LAYER_TOGGLE, LAYER_EDGE_WEIGHT),
+                chinese, chinesePunctuation,
+                new LayerKey("☺", "表情", LayerKeyKind.EMOJI, LAYER_EMOJI_WEIGHT));
+        }
+        String digits = KeyboardArrangementPolicy.digits(preset, customDigits);
+        if (KeyboardArrangementPolicy.CHAT.equals(preset)) {
+            return List.of(
+                List.of(character(chinesePunctuation ? "，" : ","), character("1"), character("2"), character("3"),
+                    new LayerKey("⌫", "删除", LayerKeyKind.DELETE, 1f)),
+                List.of(character(chinesePunctuation ? "。" : "."), character("4"), character("5"), character("6"),
+                    new LayerKey("空格", "空格", LayerKeyKind.SPACE, 1f)),
+                List.of(character(chinesePunctuation ? "？" : "?"), character("7"), character("8"), character("9"),
+                    new LayerKey("#+=", "更多符号", LayerKeyKind.LAYER_TOGGLE, 1f)),
+                List.of(new LayerKey(lettersKeyTitle(chinese), "切换到字母键盘", LayerKeyKind.LETTERS, 1f),
+                    new LayerKey("符号", "切换符号键盘", LayerKeyKind.SYMBOL_PANEL, 1f), character("0"), character("."),
+                    new LayerKey("换行", "换行", LayerKeyKind.RETURN, 1f)));
+        }
+        return List.of(
+            List.of(character(digits.substring(0, 1)), character(digits.substring(1, 2)), character(digits.substring(2, 3)), new LayerKey("⌫", "删除", LayerKeyKind.DELETE, 1f)),
+            List.of(character(digits.substring(3, 4)), character(digits.substring(4, 5)), character(digits.substring(5, 6)), new LayerKey("空格", "空格", LayerKeyKind.SPACE, 1f)),
+            List.of(character(digits.substring(6, 7)), character(digits.substring(7, 8)), character(digits.substring(8, 9)), new LayerKey("#+=", "更多符号", LayerKeyKind.LAYER_TOGGLE, 1f)),
+            List.of(new LayerKey(lettersKeyTitle(chinese), "切换到字母键盘", LayerKeyKind.LETTERS, 1f), character("."), character(digits.substring(9, 10)), new LayerKey("换行", "换行", LayerKeyKind.RETURN, 1f)));
     }
 
     /**
@@ -198,6 +223,15 @@ public final class KeyboardLayout {
             new LayerKey("123", "切换到数字和符号", LayerKeyKind.LAYER_TOGGLE, LAYER_EDGE_WEIGHT),
             chinese, chinesePunctuation, new LayerKey("符号", "切换符号键盘", LayerKeyKind.SYMBOL_PANEL,
                 LAYER_EMOJI_WEIGHT));
+    }
+
+    public static List<List<LayerKey>> moreSymbolLayer(boolean chinese, boolean chinesePunctuation, String custom) {
+        List<List<String>> rows = KeyboardArrangementPolicy.symbolRows(custom);
+        if (rows == null) return moreSymbolLayer(chinese, chinesePunctuation);
+        return layer(rows.get(0), rows.get(1),
+            new LayerKey("123", "切换到数字和符号", LayerKeyKind.LAYER_TOGGLE, LAYER_EDGE_WEIGHT),
+            chinese, chinesePunctuation,
+            new LayerKey("符号", "切换符号键盘", LayerKeyKind.SYMBOL_PANEL, LAYER_EMOJI_WEIGHT));
     }
 
     /** 层底行左下返回字母键盘的键面：中文「拼音」、英文「ABC」；描述都是「切换到字母键盘」。 */

@@ -73,7 +73,26 @@ public final class HostStore {
     @Nullable public static JSONObject loadPreferences(Context context) {
         String directory = directory(context);
         if (directory.isEmpty()) return null;
-        return value(call(() -> NativeClient.loadPreferences(directory)));
+        JSONObject snapshot = value(call(() -> NativeClient.loadPreferences(directory)));
+        // 改版升级只开启一次；用户之后关闭表情混输时保留选择。
+        if (snapshot != null && !app.msime.android.AndroidLocalSettings.load(context)
+                .bool(app.msime.android.AndroidLocalSettings.EMOJI_MIGRATED)) {
+            try {
+                JSONObject preferences = snapshot.getJSONObject("preferences");
+                JSONObject mixed = preferences.optJSONObject("mixed_input");
+                if (mixed == null) mixed = new JSONObject();
+                mixed.put("emoji", true);
+                preferences.put("mixed_input", mixed);
+                JSONObject saved = savePreferences(context, snapshot);
+                if (saved != null) {
+                    app.msime.android.AndroidLocalSettings.put(context, app.msime.android.AndroidLocalSettings.EMOJI_MIGRATED, true);
+                    snapshot = saved;
+                }
+            } catch (JSONException | java.io.IOException error) {
+                // 写入失败不妨碍读取；下次重试迁移。
+            }
+        }
+        return snapshot;
     }
 
     /**

@@ -1,4 +1,5 @@
 package app.msime.android.core;
+import app.msime.android.LocalForkMode;
 
 import app.msime.android.AppVersionPolicy;
 import app.msime.android.TextPolicy;
@@ -60,6 +61,7 @@ public final class Telemetry {
 
     /** The app process (HomeActivity): crash handler, and a flush that also counts today's `active`. */
     public static void start(Context context) {
+        if (!LocalForkMode.accountServicesEnabled()) return;
         Context app = context.getApplicationContext();
         crashDirectory = new File(directory(app), CRASH_DIRECTORY);
         installCrashHandler(app);
@@ -68,6 +70,7 @@ public final class Telemetry {
 
     /** The keyboard process (MSIMEInputService.onCreate): crash handler, a new session, then a flush. */
     public static void beginInputSession(Context context) {
+        if (!LocalForkMode.accountServicesEnabled()) return;
         Context app = context.getApplicationContext();
         crashDirectory = new File(directory(app), CRASH_DIRECTORY);
         installCrashHandler(app);
@@ -115,7 +118,7 @@ public final class Telemetry {
 
     /** The usage_reporting switch was saved. Turning it off clears everything queued at once rather than on the next start. */
     public static void setEnabled(Context context, boolean value) {
-        enabled = value;
+        enabled = value && LocalForkMode.accountServicesEnabled();
         Context app = context.getApplicationContext();
         if (!value) {
             sessionCrashRecord = null;

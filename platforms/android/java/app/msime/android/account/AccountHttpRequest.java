@@ -10,6 +10,7 @@ final class AccountHttpRequest {
 
     static void writeJson(HttpsURLConnection connection, String method, String token,
             String userAgent, byte[] payload) throws IOException {
+        if (!LocalForkMode.accountServicesEnabled()) throw new IOException("此改版已移除账号和云端服务");
         HttpConnectionPolicy.rejectRedirects(connection);
         connection.setRequestMethod(method);
         HttpConnectionPolicy.setTimeouts(connection, 30_000, 30_000);

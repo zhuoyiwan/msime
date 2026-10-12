@@ -66,7 +66,6 @@ public final class LexiconPage extends DetailPage {
         this.column = column;
         if (model != null) render();
         reload(false);
-        loadDiscover();
     }
 
     @Override protected void onBecameVisible() {
@@ -153,18 +152,6 @@ public final class LexiconPage extends DetailPage {
         manage.addView(KeyboardSheets.actionRow(context, "↻", "刷新词库", () -> reload(true),
             28, 0, Ui.ROW_GAP));
 
-        GroupCard community = GroupCard.add(target, "发现词库").withDividers(58);
-        List<CommunityCatalog.Item> items = discover;
-        if (items == null) {
-            community.note(discoverFailure == null ? "正在读取社区词库…" : discoverFailure);
-        } else if (items.isEmpty()) {
-            community.note("社区里还没有词库。");
-        } else {
-            for (CommunityCatalog.Item item : items) community.addView(discoverRow(item, current.view()));
-        }
-        // 这里只列前几个，完整列表（搜索、详情、举报）压在词库页上面，返回回到这里。
-        community.nav("浏览更多词库", "搜索社区里的全部词库", null,
-            () -> CommunityFragment.browse(context, CommunityRequest.Kind.DICTIONARY));
 
         GroupCard learning = GroupCard.add(target, "学习");
         InputFeatureToggle toggle = InputFeatureToggle.LEARNING;

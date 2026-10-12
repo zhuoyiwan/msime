@@ -141,10 +141,13 @@ public final class CloudApi {
     private final Transport transport;
     private final Tokens account;
     private final Tokens anonymous;
+    private static Exchange unavailable(String method, String path, Map<String,String> headers, byte[] body) throws IOException {
+        throw new IOException("此改版已移除账号和云端服务");
+    }
 
     public CloudApi(Context context) {
         Context application = context.getApplicationContext();
-        this.transport = CloudApi::httpExchange;
+        this.transport = CloudApi::unavailable;
         this.account = accountTokens(application);
         this.anonymous = rejected -> new BackendAnonymousAccount(application).accessToken(rejected);
     }
@@ -152,7 +155,7 @@ public final class CloudApi {
     /** Account-bound transport for a sync run; the token supplier fences sign-out and re-login. */
     public CloudApi(Context context, Tokens account) {
         Context application = context.getApplicationContext();
-        this.transport = CloudApi::httpExchange;
+        this.transport = CloudApi::unavailable;
         this.account = account;
         this.anonymous = rejected -> new BackendAnonymousAccount(application).accessToken(rejected);
     }

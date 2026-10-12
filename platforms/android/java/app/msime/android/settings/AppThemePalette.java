@@ -116,7 +116,7 @@ public final class AppThemePalette {
         accentSoft = ColorPolicy.withAlpha(accent, dark ? 0x40 : 0x22);
         background = seed.background;
         rowBackground = seed.card;
-        hair = dark ? HAIR_DARK : seed.hair;
+        hair = dark && seed.hair == 0 ? HAIR_DARK : seed.hair;
         // andCard 不先取整：原型里 logoCirc、统计柱和热力图都是在浏览器未取整的 andCard 上再混一次，先取整会差 1。
         double[] cardExact = dark ? mixExact(channels(accent), 8, channels(DARK_CARD_BASE))
             : mixExact(channels(background), 45, channels(WHITE));

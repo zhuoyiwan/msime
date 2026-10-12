@@ -40,7 +40,6 @@ public final class ExpressionPage extends DetailPage {
         this.column = column;
         if (loaded) render();
         reload();
-        loadDiscover();
     }
 
     @Override protected void onBecameVisible() {
@@ -110,27 +109,15 @@ public final class ExpressionPage extends DetailPage {
         intelligence.toggle(english.title(), english.description(),
             values.optBoolean(english.key(), english.enabledByDefault()),
             checked -> save(edit -> edit.put(english.key(), checked)));
-        // 候选里带 emoji / 颜文字（#5667）：Engine 早就会按拼音从随包的 msime-others.db 找匹配的 emoji 和颜文字插进候选（共享偏好 mixed_input.emoji / kaomoji），Android 只是没有开关，默认又是关的。
+        // 改版默认开启 Emoji 混输；用户可关闭，之后不再强制开启。
         JSONObject mixed = values.optJSONObject("mixed_input");
-        intelligence.toggle("候选带 emoji", "全拼（26 键或 9 键）、双拼输入时在候选里加入匹配的 emoji，紧跟在它描绘的词后面，例如「美国」后面是 🇺🇸",
-            mixed != null && mixed.optBoolean("emoji", false),
+        intelligence.toggle("候选带 emoji", "全拼（26 键或 9 键）、双拼均可。输入 si'kao 显示「思考 🤔」，表情紧跟对应的词",
+            mixed == null || mixed.optBoolean("emoji", true),
             checked -> save(edit -> mixedInput(edit).put("emoji", checked)));
         intelligence.toggle("候选带颜文字", "全拼（26 键或 9 键）、双拼输入时在候选里加入匹配的颜文字，排在同一个词的 emoji 之后",
             mixed != null && mixed.optBoolean("kaomoji", false),
             checked -> save(edit -> mixedInput(edit).put("kaomoji", checked)));
 
-        GroupCard phrases = GroupCard.add(target, "发现短语").withDividers(58);
-        List<CommunityCatalog.Item> items = discover;
-        if (items == null) {
-            phrases.note(discoverFailure == null ? "正在读取社区短语…" : discoverFailure);
-        } else if (items.isEmpty()) {
-            phrases.note("社区里还没有短语包。");
-        } else {
-            for (CommunityCatalog.Item item : items) phrases.addView(phraseRow(context, item));
-        }
-        // 这里只列前几个，完整列表（搜索、详情、举报）压在表达页上面，返回回到这里。
-        phrases.nav("浏览更多短语", "搜索社区里的全部短语包", null,
-            () -> CommunityFragment.browse(context, CommunityRequest.Kind.PHRASE));
     }
 
     private android.view.View phraseRow(Context context, CommunityCatalog.Item item) {

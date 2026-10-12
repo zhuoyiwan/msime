@@ -60,14 +60,24 @@ android {
         minSdk = 28
         targetSdk = 35
         // Grows with every release, as the platform requires for an update to install: 0.1.0 is 1000, 1.2.3 is 1002003.
-        versionCode = releaseVersionParts[0] * 1_000_000 + releaseVersionParts[1] * 1_000 + releaseVersionParts[2]
-        versionName = releaseVersion
+        // r4 同证书覆盖安装可保留本地数据与配对。
+        versionCode = releaseVersionParts[0] * 1_000_000 + releaseVersionParts[1] * 1_000 + releaseVersionParts[2] + 3
+        versionName = "$releaseVersion-zhuoyiwan-r4"
         ndk { abiFilters += nativeAbis }
     }
 
     sourceSets.getByName("main") {
         manifest.srcFile(hostRoot.resolve("AndroidManifest.xml"))
         java.setSrcDirs(listOf(hostRoot.resolve("java")))
+        // 本机改版不打包账号页面、登录 SDK 适配和云同步控制器。
+        java.exclude(listOf(
+            "app/msime/android/home/AccountFragment.java", "app/msime/android/home/ProfilePage.java",
+            "app/msime/android/home/DevicesPage.java", "app/msime/android/home/AuthRedirectActivity.java",
+            "app/msime/android/home/SignIn.java", "app/msime/android/home/LoginSheet.java",
+            "app/msime/android/home/ChatFragment.java", "app/msime/android/home/CloudClipboardPage.java",
+            "app/msime/android/home/CloudSync.java", "app/msime/android/account/GoogleSignInFlow.java",
+            "app/msime/android/account/AccountSessionProvider.java"
+        ))
         res.setSrcDirs(listOf(hostRoot.resolve("res")))
         // The verified dictionary and the native licence notices are staged by build-apk.sh.
         assets.setSrcDirs(listOf(hostRoot.resolve("../../target/android/host-assets")))
@@ -130,6 +140,9 @@ android {
 }
 
 dependencies {
+    // Windows 局域网协议需要 TLS 1.3 外部 PSK；系统 SSLSocket 不提供该能力。
+    implementation("org.bouncycastle:bctls-jdk18on:1.83")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation("androidx.appcompat:appcompat:1.8.0")
     // Held at 1.13.1: androidx.core 1.19 declares a minimum of AGP 9.1, and AGP cannot move here without the Gradle wrapper, which belongs to the Tauri bundle. The other four in this group carry no such floor.
     implementation("androidx.core:core:1.13.1")
@@ -142,7 +155,4 @@ dependencies {
     // Notice bodies on the 设置 tab are simple Markdown. Core only: no HTML plugin, so raw HTML in a notice is never interpreted, and no image loader.
     implementation("io.noties.markwon:core:4.6.2")
     // Google 登录。Credential Manager 是 Google 现在的官方入口，旧的 GoogleSignInClient 已弃用；googleid 提供「通过 Google 登录」按钮用的 GetSignInWithGoogleOption（不是底部弹出一键登录用的 GetGoogleIdOption，见 GoogleSignInFlow），play-services-auth 那件是它在设备上的实现。googleid 1.2.1 依赖 credentials 1.6.0，androidx.credentials 又是一个版本一致的原子组，所以原来写的 1.3.0 实际都解析成 1.6.0；这里直接写解析出来的版本，免得读的人按 1.3.0 去查行为。
-    implementation("androidx.credentials:credentials:1.6.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.1")
 }

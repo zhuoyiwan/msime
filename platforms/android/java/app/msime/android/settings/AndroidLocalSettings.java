@@ -36,6 +36,10 @@ public final class AndroidLocalSettings {
 
     // ---- 随账号同步的键 ----
     public static final String APP_THEME = "general.app_theme";
+    /** 随本机壁纸配色，不参加跨设备设置同步。 */
+    public static final String WALLPAPER_COLORS = "platform.android.wallpaper_colors";
+    /** 改版表情候选的一次性迁移标记，跨宿主与输入法进程共享。 */
+    public static final String EMOJI_MIGRATED = "platform.android.fork_emoji_migrated";
     public static final String ONE_HANDED = "platform.android.one_handed";
     /** 平板横屏时把 26 键一族和韩文键盘分成左右两半（{@link SplitKeyboardPolicy}），默认关。 */
     public static final String SPLIT_KEYBOARD = "platform.android.split_keyboard";
@@ -69,6 +73,11 @@ public final class AndroidLocalSettings {
     public static final String CLIPBOARD_SUGGESTION = "platform.android.clipboard_suggestion";
     /** 「数字行」（#6022）：26 键和韩文键盘的字母上方多一行 1–0（{@link KeyboardLayout#drawsNumberRow}），默认关。同步字段表里没有这个键，只在本机。 */
     public static final String NUMBER_ROW = "platform.android.number_row";
+    public static final String NUMBER_ARRANGEMENT = "platform.android.number_arrangement";
+    public static final String PREFIX_COMPLETION = "platform.android.prefix_completion";
+    public static final String PHRASE_ALIASES = "platform.android.phrase_aliases";
+    public static final String CUSTOM_DIGIT_ORDER = "platform.android.custom_digit_order";
+    public static final String CUSTOM_SYMBOL_ROWS = "platform.android.custom_symbol_rows";
     /** 拼音九键网格键的滑动（{@link NineKeySwipePolicy}）：关闭、上滑输入数字或下滑输入数字，默认关闭，不改变原来九键的点按。和 26 键的「滑动输入符号」分开，服务端的同步字段表还没有这个键，所以先只在本机。 */
     public static final String NINE_KEY_SWIPE = "platform.android.nine_key_swipe";
     /** 拼音九键滑动的判定距离（dp，{@link NineKeySwipePolicy#MIN_THRESHOLD_DP}..{@link NineKeySwipePolicy#MAX_THRESHOLD_DP}，默认 {@link NineKeySwipePolicy#DEFAULT_THRESHOLD_DP}），只影响 {@link #NINE_KEY_SWIPE}，26 键的滑动阈值不变。和 {@link #NINE_KEY_SWIPE} 一样只在本机。 */
@@ -164,6 +173,8 @@ public final class AndroidLocalSettings {
 
     static {
         choice(APP_THEME, "siji", true, "siji", "chunya", "xiayin", "qiushan", "dongxue");
+        bool(WALLPAPER_COLORS, false, false);
+        bool(EMOJI_MIGRATED, false, false);
         choice(ONE_HANDED, "off", true, "off", "left", "right");
         bool(SPLIT_KEYBOARD, false, true);
         bool(KEY_POPUP, true, true);
@@ -190,6 +201,15 @@ public final class AndroidLocalSettings {
             ClipboardLayoutPolicy.ONE_COLUMN, ClipboardLayoutPolicy.TWO_COLUMNS);
         bool(CLIPBOARD_SUGGESTION, true, false);
         bool(NUMBER_ROW, false, false);
+        bool(PREFIX_COMPLETION, true, false);
+        text(PHRASE_ALIASES, "{}", false, value -> value.length() <= 8192 ? value : "{}");
+        choice(NUMBER_ARRANGEMENT, KeyboardArrangementPolicy.PHONE, false,
+            KeyboardArrangementPolicy.CHAT,
+            KeyboardArrangementPolicy.PHONE, KeyboardArrangementPolicy.CALCULATOR,
+            KeyboardArrangementPolicy.ROW, KeyboardArrangementPolicy.CUSTOM);
+        text(CUSTOM_DIGIT_ORDER, KeyboardArrangementPolicy.DEFAULT_DIGITS, false,
+            value -> KeyboardArrangementPolicy.validDigits(value) ? value.trim() : KeyboardArrangementPolicy.DEFAULT_DIGITS);
+        text(CUSTOM_SYMBOL_ROWS, "", false, KeyboardArrangementPolicy::normalizeSymbols);
         choice(NINE_KEY_SWIPE, NineKeySwipePolicy.OFF, false, NineKeySwipePolicy.OFF, SwipeHintPolicy.UP,
             SwipeHintPolicy.DOWN);
         integer(NINE_KEY_SWIPE_DISTANCE, NineKeySwipePolicy.DEFAULT_THRESHOLD_DP, false,

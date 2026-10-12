@@ -44,6 +44,7 @@ final class ImeLetterRows {
     private boolean builtSplit;
     /** 当前键行有没有画数字行；与 {@link MSIMEInputService#numberRowDrawn} 不一致时要重建（{@link #numberRowStale}）。 */
     private boolean builtNumberRow;
+    private String builtArrangement = "";
     /** 123 / #+= 层建的时候用的标点：全角中文或半角英文。中文标点开关变了要重建，否则键面和上屏的还是旧的。 */
     private Boolean builtLayerPunctuation;
     /** 当前键行若是 {@link #rebuildKeyRows} 的通用分支在字母层建的，记下按哪个布局建；其他分支建的为 -1。只有这种键行能就地换大小写（{@link #refreshLetterCase}）。 */
@@ -240,6 +241,7 @@ final class ImeLetterRows {
 
     /** 正显示着 123 / #+= 层，而中文标点开关和建层时不一样了。 */
     boolean layerPunctuationStale() {
+        if (s.keyboardLayer == KeyboardLayout.Layer.SYMBOLS && !builtArrangement.equals(arrangementKey())) return true;
         return s.keyRows != null && builtLayerPunctuation != null
             && s.keyboardLayer == KeyboardLayout.Layer.SYMBOLS
             && builtLayerPunctuation != s.sendsChinesePunctuation();
@@ -801,12 +803,16 @@ final class ImeLetterRows {
      * 新设计的 123 层（moreSymbols 为假）或 #+= 层：四行键自带底行（拼音 / ABC | 表情或符号 | 空格 | ↵），功能行这时整行不显示。字符键原样上屏，⌫ / 空格 / 回车用常驻的那几个键。标点用全角中文还是半角英文跟「中文标点」走（{@link MSIMEInputService#sendsChinesePunctuation}），不是跟中英文模式：0.2.0 起这里只看中英文模式，关掉中文标点后这一层照样上屏「，」「。」。
      */
     private void rebuildDesignLayer() {
+        builtArrangement = arrangementKey();
         boolean chinese = !s.dedicatedEnglish;
         boolean chinesePunctuation = s.sendsChinesePunctuation();
         builtLayerPunctuation = chinesePunctuation;
         java.util.List<java.util.List<KeyboardLayout.LayerKey>> rows = moreSymbols
-            ? KeyboardLayout.moreSymbolLayer(chinese, chinesePunctuation)
-            : KeyboardLayout.numberLayer(chinese, chinesePunctuation);
+            ? KeyboardLayout.moreSymbolLayer(chinese, chinesePunctuation,
+                s.localSettings.text(AndroidLocalSettings.CUSTOM_SYMBOL_ROWS))
+            : KeyboardLayout.numberLayer(chinese, chinesePunctuation,
+                s.localSettings.choice(AndroidLocalSettings.NUMBER_ARRANGEMENT),
+                s.localSettings.text(AndroidLocalSettings.CUSTOM_DIGIT_ORDER));
         for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
             LinearLayout row = LayoutPolicy.row(s);
             // 最后一行是这一层自带的底行，和功能行一样挂底行角色：和一行键同高，分到四行均分后底行的那一份调整；前三行和字母键一样分摊其余部分，整层与字母层同高。底行原先挂的是 rowCount 为 1 的普通角色，整份调整量在三行之外又加了一遍：调高时这一层比字母层高出一截，调到 75% 时底行被压成 0 高。
@@ -829,6 +835,12 @@ final class ImeLetterRows {
                 else splitRow(row);
             }
         }
+    }
+
+    private String arrangementKey() {
+        return s.localSettings.choice(AndroidLocalSettings.NUMBER_ARRANGEMENT) + "|"
+            + s.localSettings.text(AndroidLocalSettings.CUSTOM_DIGIT_ORDER) + "|"
+            + s.localSettings.text(AndroidLocalSettings.CUSTOM_SYMBOL_ROWS);
     }
 
     private Button designLayerKey(KeyboardLayout.LayerKey layerKey, boolean firstRow) {

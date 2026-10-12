@@ -42,11 +42,11 @@ import com.google.android.material.progressindicator.LinearProgressIndicator;
 import org.json.JSONObject;
 
 /**
- * 新手引导：四步，从「把键盘加进系统」走到「登录能多得到什么」。
+ * 新手引导：启用键盘、选择方案、离线译文和本地设备互通。
  *
  * <p>The design's Android flow: a progress bar rather than a counter, an accent glyph, a kicker, a large regular-weight title and a body line, then the step's own content. The left button reads 跳过 on the first step and 上一步 after it; a horizontal swipe moves between steps too.
  *
- * <p>这几页上的每个控件都改真实的设置。方案卡片经 {@link SchemePreferences#withScheme} 写入，与设置页的方案选择是同一套映射；「显示译文」开关就是键盘读的离线英文释义偏好。首次安装时偏好要等词库准备完成才读得到，点下的选择先由 {@link OnboardingChoices} 记下并立即显示，偏好可读后自动写入，用户不必等准备完成，离开引导也不会丢。The last step's 登录 opens {@link LoginSheet} (Apple / Google / 邮箱，按后端接受的方式), shown only when sign-in is offered; 稍后再说 sits beside it and leaves the flow without signing in, as on iOS and in the design's Android footer (`ob.andLeft`): 跳过 shows only on the first step, so without it the last step had no way out but opening the sheet and closing it again. After a successful sign-in, after the sheet was closed without signing in, or when sign-in is not offered at all, the main button reads 开始使用 and 稍后再说 goes away.
+ * <p>每个控件都改真实设置；首次词库准备期间，选择先由 {@link OnboardingChoices} 保存，偏好可读后自动写入。最后一步介绍无需账号的局域网配对，以「开始使用」结束引导。
  */
 public final class OnboardingActivity extends AppCompatActivity {
     /** 引导自己的 SharedPreferences：「已看过」和 {@link OnboardingChoices} 记下的待保存选择都在这里。 */
@@ -86,11 +86,6 @@ public final class OnboardingActivity extends AppCompatActivity {
     private int syncRetries;
     /** What the last write on this page did, shown under the page's controls until the page changes. */
     @Nullable private String note;
-    /** Whether the last step can offer sign-in; null until the off-thread check answers, which reads as not offered. */
-    @Nullable private SignIn.State account;
-    private boolean signingIn;
-    /** 在最后一步打开过登录面板又没登录就关掉了：主按钮改为「开始使用」，不再反复弹出面板，「稍后再说」随之收起。 */
-    private boolean declined;
     private OnBackPressedCallback back;
     private GestureDetector swipe;
     /** 首次安装时，引导页打开时词库还在准备，准备完成前读不到偏好设置。准备完成时重新读取并写入待保存的选择；进入失败或重新开始准备时，方案页和译文页的脚注跟着换。 */
@@ -115,7 +110,6 @@ public final class OnboardingActivity extends AppCompatActivity {
         ViewPolicy.bindClick(findViewById(R.id.onboarding_later), this::finishFlow);
         ViewPolicy.bindClick(findViewById(R.id.onboarding_next), () -> {
             if (page < pages - 1) go(page + 1);
-            else if (account == SignIn.State.OFFERED && !declined) signIn();
             else finishFlow();
         });
         // Back steps back through the flow; on the first step it leaves without marking the flow seen, as it always has, so the guide comes back on the next launch.
@@ -142,7 +136,6 @@ public final class OnboardingActivity extends AppCompatActivity {
         FirstRunPreparation.startIfNeeded(this);
         syncChoices();
         FirstRunPreparation.observe(preparation);
-        probeAccount();
     }
 
     @Override protected void onDestroy() {
@@ -184,14 +177,11 @@ public final class OnboardingActivity extends AppCompatActivity {
             .setProgressCompat(page + 1, animate);
         ViewPolicy.setVisible(findViewById(R.id.onboarding_skip), page == 0);
         ViewPolicy.setVisible(findViewById(R.id.onboarding_previous), page != 0);
-        boolean offer = page == pages - 1 && account == SignIn.State.OFFERED && !declined;
         MaterialButton next = findViewById(R.id.onboarding_next);
-        next.setText(page < pages - 1 ? R.string.onboarding_next
-            : offer ? R.string.onboarding_sign_in : R.string.onboarding_done);
-        ViewPolicy.setEnabled(next, !signingIn);
+        next.setText(page < pages - 1 ? R.string.onboarding_next : R.string.onboarding_done);
+        ViewPolicy.setEnabled(next, true);
         View later = findViewById(R.id.onboarding_later);
-        ViewPolicy.setVisible(later, offer);
-        ViewPolicy.setEnabled(later, !signingIn);
+        ViewPolicy.hide(later);
         // back 是 OnBackPressedCallback，不是 View，ViewPolicy.setEnabled 管不了它。
         back.setEnabled(page > 0);
 
@@ -354,55 +344,16 @@ public final class OnboardingActivity extends AppCompatActivity {
     }
 
     private void sync(LinearLayout column) {
-        String body = account == SignIn.State.SIGNED_IN
-            ? "你已登录。打开「我的 → 云同步」后，词库、自造词、皮肤和云剪贴板会在手机、平板和电脑之间同步。"
-            : "登录后词库、自造词、皮肤和云剪贴板会在手机、平板和电脑之间同步。日常输入不需要登录。";
-        header(column, R.drawable.ic_ms_sync, "最后一步", "登录后多端同步", body);
-        perk(column, R.drawable.ic_ms_menu_book, "词库和自造词", 6);
-        perk(column, R.drawable.ic_ms_palette, "皮肤与主题", 10);
-        perk(column, R.drawable.ic_ms_content_paste, "云剪贴板", 10);
+        header(column, R.drawable.ic_ms_sync, "最后一步", "本地输入，设备互通", "无需账号。输入、词库和设置保存在本机；在「设备互通」扫码配对后，可与 Windows 改版共享系统剪贴板。");
+        perk(column, R.drawable.ic_ms_menu_book, "本机词库与自造词", 6);
+        perk(column, R.drawable.ic_ms_palette, "本地皮肤与主题", 10);
+        perk(column, R.drawable.ic_ms_content_paste, "局域网剪贴板", 10);
         if (note != null) footnote(column, note);
     }
 
     // ---- sign-in ----
 
     /** Ask once whether the last step can offer sign-in; the answer may need the backend, so it is read off the main thread. */
-    private void probeAccount() {
-        Context context = getApplicationContext();
-        offMainThread(() -> {
-            SignIn.State state = SignIn.state(context);
-            runOnUiThread(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                account = state;
-                if (page == pages - 1) render(false);
-            });
-        }, () -> runOnUiThread(() -> {
-            if (isFinishing() || isDestroyed()) return;
-            account = SignIn.State.ABSENT;
-            if (page == pages - 1) render(false);
-        }));
-    }
-
-    private void signIn() {
-        if (signingIn) return;
-        signingIn = true;
-        note = "正在登录…";
-        render(false);
-        SignIn.start(this, failure -> {
-            if (isFinishing() || isDestroyed()) return;
-            signingIn = false;
-            if (failure.isEmpty()) {
-                account = SignIn.State.SIGNED_IN;
-                note = null;
-            } else if (LoginSheet.CANCELLED.equals(failure)) {
-                declined = true;
-                note = null;
-            } else {
-                note = failure;
-            }
-            render(false);
-        });
-    }
 
     // ---- writes ----
 

@@ -95,9 +95,9 @@ final class LocalBackup {
             dictionary = work.resolve("export-dictionary.ndjson");
             habitsFile = work.resolve("export-habits.ndjson");
             archive = work.resolve("export.zip");
-            JSONObject settings = CloudSync.nativeValue(NativeClient.accountSettingsExport(
+            JSONObject settings = LocalData.nativeValue(NativeClient.accountSettingsExport(
                 new JSONObject().put("preferences_directory", directory)
-                    .put("feedback", CloudSync.hostFeedback(context)).toString()))
+                    .put("feedback", LocalData.hostFeedback(context)).toString()))
                 .getJSONObject("settings");
             settings.remove(SyncMergePolicy.SKINS_KEY);
             JSONObject local = new JSONObject();
@@ -106,7 +106,7 @@ final class LocalBackup {
             }
             String skins = CustomSkinLibrary.exportDesigns(Paths.get(directory));
             List<String> phrases = ownPhrases(context);
-            JSONObject snapshot = CloudSync.exportDictionarySnapshot(context, dictionary, true);
+            JSONObject snapshot = LocalData.exportDictionarySnapshot(context, dictionary, true);
             Integer words = JsonPolicy.nonNegativeInteger(snapshot.opt("entries"));
             Integer learning = JsonPolicy.nonNegativeInteger(snapshot.opt("learning"));
             // 输入记录读不出来时原生侧照样导出词，只是不带输入记录（`learning_error`）。
@@ -180,8 +180,8 @@ final class LocalBackup {
     @Nullable private static Integer exportHabits(Context context, Path file) {
         try {
             Files.deleteIfExists(file);
-            JSONObject value = CloudSync.nativeValue(NativeClient.dictionary(new JSONObject()
-                .put("options", new JSONObject(CloudSync.hostOptions(context)))
+            JSONObject value = LocalData.nativeValue(NativeClient.dictionary(new JSONObject()
+                .put("options", new JSONObject(LocalData.hostOptions(context)))
                 .put("action", new JSONObject().put("operation", "export_habits")
                     .put("destination", file.toAbsolutePath().toString())).toString()));
             Integer habits = JsonPolicy.nonNegativeInteger(value.opt("habits"));
@@ -350,8 +350,8 @@ final class LocalBackup {
             try (InputStream input = zip.getInputStream(entry)) {
                 copyBounded(input, file, limit);
             }
-            CloudSync.nativeValue(NativeClient.dictionary(new JSONObject()
-                .put("options", new JSONObject(CloudSync.hostOptions(context)))
+            LocalData.nativeValue(NativeClient.dictionary(new JSONObject()
+                .put("options", new JSONObject(LocalData.hostOptions(context)))
                 .put("action", new JSONObject().put("operation", operation)
                     .put("source", file.toAbsolutePath().toString())).toString()));
             return true;
@@ -449,9 +449,9 @@ final class LocalBackup {
         }
 
         static Undo capture(Context context, String directory) throws IOException, JSONException {
-            JSONObject settings = CloudSync.nativeValue(NativeClient.accountSettingsExport(
+            JSONObject settings = LocalData.nativeValue(NativeClient.accountSettingsExport(
                 new JSONObject().put("preferences_directory", directory)
-                    .put("feedback", CloudSync.hostFeedback(context)).toString()))
+                    .put("feedback", LocalData.hostFeedback(context)).toString()))
                 .getJSONObject("settings");
             settings.remove(SyncMergePolicy.SKINS_KEY);
             return new Undo(settings, KeyboardFeedbackStore.load(context),
@@ -503,7 +503,7 @@ final class LocalBackup {
     /** 把一份设置文档按它自己每个值的类型声明字段表，交给 client-core 应用（与云同步同一条路）。偏好恰好被键盘抢先写了一次时重读重来一次。 */
     private static void applySettingsDocument(Context context, String directory, JSONObject settings)
             throws IOException, JSONException {
-        Map<String, String> types = LocalBackupPolicy.fieldTypes(CloudSync.map(settings));
+        Map<String, String> types = LocalBackupPolicy.fieldTypes(LocalData.map(settings));
         if (types == null) throw new IOException("too many settings");
         JSONObject fields = new JSONObject();
         for (Map.Entry<String, String> type : types.entrySet()) {
@@ -513,10 +513,10 @@ final class LocalBackup {
             .put("update_mode", "replace").put("revision_required", true);
         JSONObject cloud = new JSONObject().put("revision", 0).put("settings", settings);
         try {
-            CloudSync.applySettings(context, directory, cloud, schema);
+            LocalData.applySettings(context, directory, cloud, schema);
         } catch (IllegalStateException changed) {
             // 偏好按读到的修订号比较并交换；键盘恰好在这时写了一次偏好就重读重来一次。
-            CloudSync.applySettings(context, directory, cloud, schema);
+            LocalData.applySettings(context, directory, cloud, schema);
         }
     }
 
@@ -635,7 +635,7 @@ final class LocalBackup {
                 : LocalBackupPolicy.dictionaryRestore(words.size(), localWordCount(context), localLearningCount(context));
             if (mode == LocalBackupPolicy.DictionaryRestore.ACTIVATE) {
                 try {
-                    CloudSync.enqueueDictionarySnapshot(context, file, DictionarySnapshotQueue.LOCAL_RESTORE_OWNER, 0);
+                    LocalData.enqueueDictionarySnapshot(context, file, DictionarySnapshotQueue.LOCAL_RESTORE_OWNER, 0);
                     SyncSignals.markDirty(context, SyncSwitch.DICTIONARY);
                     return new int[] {words.size(), 0, manifestLearning(zip)};
                 } catch (IOException | DictionarySnapshotQueue.Failure unavailable) {
@@ -673,7 +673,7 @@ final class LocalBackup {
     /** 本机用户词数；读不出来时为 null，恢复改走合并（{@link LocalBackupPolicy#dictionaryRestore}）。 */
     @Nullable private static Integer localWordCount(Context context) {
         try {
-            return CloudSync.userWordCount(context);
+            return LocalData.userWordCount(context);
         } catch (IOException | JSONException | RuntimeException error) {
             Log.w(TAG, "local word count unavailable, merging instead", error);
             return null;
@@ -683,8 +683,8 @@ final class LocalBackup {
     /** 本机日志里输入记录和输入习惯的条数之和（`learning_count` 的 `count` 加 `habits`），不含用户自己的词：整份激活会把两者都换掉。任何一个读不出来时为 null，恢复改走合并。 */
     @Nullable private static Integer localLearningCount(Context context) {
         try {
-            JSONObject value = CloudSync.nativeValue(NativeClient.dictionary(new JSONObject()
-                .put("options", new JSONObject(CloudSync.hostOptions(context)))
+            JSONObject value = LocalData.nativeValue(NativeClient.dictionary(new JSONObject()
+                .put("options", new JSONObject(LocalData.hostOptions(context)))
                 .put("action", new JSONObject().put("operation", "learning_count")).toString()));
             Integer learning = JsonPolicy.nonNegativeInteger(value.opt("count"));
             Integer habits = JsonPolicy.nonNegativeInteger(value.opt("habits"));
@@ -698,8 +698,8 @@ final class LocalBackup {
     /** 把快照里的输入记录排给键盘合并（`queue_learning_merge`），返回排进去的条数；快照里没有输入记录时返回 0。失败时在 `failed` 里记下「输入记录」，不影响词的恢复。 */
     private static int queueLearning(Context context, Path file, List<String> failed) {
         try {
-            JSONObject value = CloudSync.nativeValue(NativeClient.dictionary(new JSONObject()
-                .put("options", new JSONObject(CloudSync.hostOptions(context)))
+            JSONObject value = LocalData.nativeValue(NativeClient.dictionary(new JSONObject()
+                .put("options", new JSONObject(LocalData.hostOptions(context)))
                 .put("action", new JSONObject().put("operation", "queue_learning_merge")
                     .put("source", file.toAbsolutePath().toString())).toString()));
             if (!JsonPolicy.strictTrue(value.opt("queued"))) return 0;
@@ -722,8 +722,8 @@ final class LocalBackup {
             try (InputStream input = zip.getInputStream(entry)) {
                 copyBounded(input, file, LocalBackupPolicy.MAX_HABITS_BYTES);
             }
-            JSONObject value = CloudSync.nativeValue(NativeClient.dictionary(new JSONObject()
-                .put("options", new JSONObject(CloudSync.hostOptions(context)))
+            JSONObject value = LocalData.nativeValue(NativeClient.dictionary(new JSONObject()
+                .put("options", new JSONObject(LocalData.hostOptions(context)))
                 .put("action", new JSONObject().put("operation", "queue_habits_merge")
                     .put("source", file.toAbsolutePath().toString())).toString()));
             if (!JsonPolicy.strictTrue(value.opt("queued"))) return 0;

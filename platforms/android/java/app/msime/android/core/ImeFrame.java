@@ -34,6 +34,28 @@ final class ImeFrame {
         this.s = s;
     }
 
+    LinearLayout createKeyboard() {
+        LinearLayout layout = new LinearLayout(s) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                // 固定键高不受 AT_MOST 自动压缩，先量自然高度，再给键区剩余空间。
+                if (row != null) s.imeStyler.measureKeyboardHeight(row, 1f);
+                super.onMeasure(widthSpec, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+                int keyHeight = row == null || row.getVisibility() == GONE ? 0 : row.getMeasuredHeight();
+                android.content.res.Configuration configuration = s.getResources().getConfiguration();
+                int parentHeight = MeasureSpec.getMode(heightSpec) == MeasureSpec.UNSPECIFIED
+                    ? 0 : MeasureSpec.getSize(heightSpec);
+                int limit = CompactKeyboardPolicy.heightLimit(parentHeight, s.pixels(configuration.screenHeightDp),
+                    configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE);
+                float scale = CompactKeyboardPolicy.keyScale(getMeasuredHeight(), keyHeight, limit);
+                if (row != null && scale < 1f) s.imeStyler.measureKeyboardHeight(row, scale);
+                super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setContentDescription("输入法键盘");
+        return layout;
+    }
+
     /** 侧栏在哪一边：键盘靠右时在左（索引 0），靠左时在右。 */
     static boolean gutterOnLeft(String mode) {
         return "right".equals(mode);

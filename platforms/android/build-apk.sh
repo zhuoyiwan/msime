@@ -86,6 +86,10 @@ while IFS= read -r artifact; do cp "$resource_dir/$artifact" "$assets/dictionary
 cargo run --quiet -p msime-client-core --example verify_resources --locked -- ${verify_flags[@]+"${verify_flags[@]}"} ${edition_flags[@]+"${edition_flags[@]}"} "$assets/dictionary" >/dev/null
 mkdir -p "$assets/native-notices"
 cp -R target/android/notices/. "$assets/native-notices/"
+# 局域网 TLS 与二维码库的许可随宿主 APK 分发。
+for notice in bouncycastle-MIT.txt zxing-embedded-Apache-2.0.txt zxing-core-Apache-2.0.txt; do
+  cp "resources/licenses/$notice" "$assets/native-notices/$notice"
+done
 cp LICENSE "$assets/client-LICENSE.txt"
 # 辅助码表不在词库发布里，由仓库自带在 resources/helpcodes。Bootstrap 把它们解到资源目录下的 helpcodes/，Engine 从那里读（crates/engine/src/assets.rs 列出七个文件），安装包每次变化都会替换它们。
 mkdir -p "$assets/helpcodes"

@@ -20,9 +20,7 @@ import org.json.JSONObject;
  */
 public final class PrivacyPage extends DetailPage {
     private static final String POLICY = "https://msime.app/privacy/";
-    private static final InputFeatureToggle[] NETWORK = {
-        InputFeatureToggle.CANDIDATE_TRANSLATION_ACCOUNT, InputFeatureToggle.USAGE_REPORTING,
-    };
+    private static final InputFeatureToggle[] NETWORK = {};
     private static final InputFeatureToggle[] LOCAL = {InputFeatureToggle.CLIPBOARD_HISTORY};
 
     private final Map<InputFeatureToggle, GroupCard.Row> rows = new EnumMap<>(InputFeatureToggle.class);
@@ -32,17 +30,14 @@ public final class PrivacyPage extends DetailPage {
         rows.clear();
         String app = getString(R.string.app_name);
         GroupCard intro = GroupCard.add(column, null);
-        intro.note(app + "本地优先：拼音、词库、自造词和输入统计都在这台设备上处理和保存。只有你打开的联网功能才会连接 api.msime.app，下面逐项列出。");
+        intro.note(app + "改版使用本机输入与局域网互通，不提供上游账号、匿名注册或云同步。局域网同步开启后，新收到的文字会更新系统剪贴板，并保存在本机历史中。");
 
-        GroupCard network = GroupCard.add(column, "联网功能").withDividers(16);
-        for (InputFeatureToggle toggle : NETWORK) addToggle(network, toggle);
 
         GroupCard local = GroupCard.add(column, "本机数据").withDividers(16);
         for (InputFeatureToggle toggle : LOCAL) addToggle(local, toggle);
 
         GroupCard incognito = GroupCard.add(column, "隐私模式");
-        incognito.note("在键盘功能面板里打开隐私模式后，" + app
-            + "不学习新词、不调整候选顺序，不记录字数、按键和输入统计，不保存剪贴板历史和云剪贴板，也不做任何数据贡献。云候选、翻译、AI 润色这类你单独打开的联网功能按各自的开关照常工作，不受隐私模式影响。");
+        incognito.note("打开键盘隐私模式后，不学习新词、不记录输入统计，也不保存或同步剪贴板。系统标记为敏感的内容和配对密钥不分享。");
 
         GroupCard links = GroupCard.add(column, null);
         links.nav("隐私政策", "msime.app", null, this::openPolicy);

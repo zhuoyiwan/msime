@@ -61,6 +61,7 @@ final class BackendAnonymousAccount {
 
     /** Return a token, forcing anonymous re-authentication when the supplied token was rejected. */
     String accessToken(String rejectedToken) throws Exception {
+        if (!LocalForkMode.accountServicesEnabled()) throw new java.io.IOException("此改版不创建匿名账号");
         if (!AccountSessionRoutingPolicy.ownsSession(
                 Application.getProcessName(), application.getPackageName())) {
             return ownerToken(rejectedToken);

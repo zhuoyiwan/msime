@@ -2,9 +2,14 @@
 # 测试类之外，还要列出它们引用到的应用类，以及这些类再引用到的类：应用的源文件按功能分在子目录里，却都在同一个包 `app.msime.android` 下，javac 的 -sourcepath 按包找不到它们，只能逐个列出。
 # 应用类挪进新的辅助类之后要把新类补进来；`check-host.sh` 会按这份清单编译一遍，漏了就在 PR 上失败。
 platforms/android/tests/device/core/EditorActivity.java
+platforms/android/tests/device/core/WallpaperSetterActivity.java
+platforms/android/tests/device/keyboard/EmojiWallpaperDeviceSmoke.java
+platforms/android/tests/device/keyboard/CompactPrefixDeviceSmoke.java
 platforms/android/tests/device/core/DeviceSmoke.java
 platforms/android/tests/device/core/ImageClipProvider.java
 platforms/android/tests/device/clipboard/ClipboardImageDeviceSmoke.java
+platforms/android/tests/device/clipboard/LanClipboardDeviceSmoke.java
+platforms/android/java/app/msime/android/settings/LocalForkMode.java
 platforms/android/tests/device/candidate/CandidatePanelDeviceSmoke.java
 platforms/android/tests/device/candidate/AiPlaceholderDeviceSmoke.java
 platforms/android/tests/device/keyboard/MoreToolsDeviceSmoke.java
@@ -74,6 +79,7 @@ platforms/android/java/app/msime/android/keyboard/KeyboardSpacingPolicy.java
 platforms/android/java/app/msime/android/keyboard/KeyboardTypographyPolicy.java
 platforms/android/java/app/msime/android/keyboard/KeyboardKeyRole.java
 platforms/android/java/app/msime/android/keyboard/KeyboardLayout.java
+platforms/android/java/app/msime/android/keyboard/KeyboardArrangementPolicy.java
 platforms/android/java/app/msime/android/keyboard/KeyboardPressButton.java
 platforms/android/java/app/msime/android/keyboard/KeyboardPressFeedback.java
 platforms/android/java/app/msime/android/keyboard/KeyboardSkin.java

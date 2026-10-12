@@ -1909,7 +1909,7 @@ fn smart_punctuation_default() -> bool {
 ///
 /// The other hosts keep what they have shipped. A stored value is untouched either way; this answers only for a document that does not have the key yet.
 fn source_voice_default() -> bool {
-    cfg!(any(windows, target_os = "macos"))
+    cfg!(any(windows, target_os = "macos", target_os = "android"))
 }
 
 /// The source's factory template turns the AI assistant on and points it at DeepSeek (`deepseek-v4-flash`); `platforms/windows/installer/config.default.toml` ships the same, but the running host reads this document, so the effective first-run value on Windows was off with no endpoint or model. macOS follows the desktop product it ports. Being on without a token sends nothing: `chat_completion_http_request` refuses to build a request until a usable key is set.

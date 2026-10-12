@@ -951,6 +951,8 @@ client_sources=()
 while IFS= read -r source; do
   case "${source#"$repo_root/"}" in
     platforms/android/java/app/msime/android/home/*) continue ;;
+    # TLS 库和跨进程宿主入口由 Gradle 完整编译、lint 与设备验收覆盖；纯协议类仍参加 JVM 冒烟。
+    platforms/android/java/app/msime/android/clipboard/LanClipboardTls.java|platforms/android/java/app/msime/android/clipboard/LanClipboardStore.java|platforms/android/java/app/msime/android/clipboard/LanClipboardRuntime.java|platforms/android/java/app/msime/android/clipboard/LanClipboardProvider.java) continue ;;
   esac
   if rg -q '^import (androidx|com\.google)\.' "$source"; then continue; fi
   client_sources+=("$source")

@@ -77,6 +77,11 @@ final class ImePrivacyGate {
     static boolean capturesClipboard(boolean historyEnabled, boolean storeReady) {
         return historyEnabled && storeReady;
     }
+    /** 全局复制与当前输入框分开：键盘可见时仍遵守密码框与隐私限制。 */
+    static boolean allowsLanCapture() {
+        ImePrivacyGate gate = current;
+        return gate == null || !gate.s.isInputViewShown() || gate.allows(Record.CLIPBOARD_HISTORY);
+    }
 
     /** 输入框是否允许个性化学习，换算回 imeOptions 位供判断使用。 */
     private int imeOptions() {

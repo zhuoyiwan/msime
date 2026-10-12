@@ -277,7 +277,7 @@ public final class TypingPage extends DetailPage {
 
         GroupCard translation = GroupCard.add(target, "翻译");
         InputFeatureToggle translations = InputFeatureToggle.CANDIDATE_TRANSLATIONS;
-        translation.toggle("候选词翻译", "为候选词附上译文；联网翻译在「我的 → 隐私」里开启",
+        translation.toggle("候选词翻译", "为候选词显示本机词库中的译文",
             preferences.optBoolean(translations.key(), translations.enabledByDefault()),
             checked -> save(values -> values.put(translations.key(), checked)));
         InputFeatureToggle gloss = InputFeatureToggle.CANDIDATE_ENGLISH_GLOSS;

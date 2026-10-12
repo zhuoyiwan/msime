@@ -131,6 +131,7 @@ public final class MSIMEInputService extends InputMethodService {
     ImeTextEditPanel imeTextEditPanel;
     ImeCalculator imeCalculator;
     ImeEmailSuffixes imeEmailSuffixes;
+    ImePrefixCompletions imePrefixCompletions;
     long session;
     InputConnection connection;
     private EditorBridge bridge = new EditorBridge();
@@ -1368,6 +1369,7 @@ public final class MSIMEInputService extends InputMethodService {
 
     // One reporting session per keyboard process: a crash here is recorded against it, and a session that ends through onDestroy counts as a normal one.
     @Override public void onCreate() {
+        LanClipboardRuntime.start(this);
         // 拆出去的构建与渲染类持有本服务；在 onCreate 里创建，构造期间不把 this 交出去。
         imeToolbar = new ImeToolbar(this);
         imeCandidates = new ImeCandidates(this);
@@ -1388,6 +1390,7 @@ public final class MSIMEInputService extends InputMethodService {
         imeTextEditPanel = new ImeTextEditPanel(this);
         imeCalculator = new ImeCalculator(this);
         imeEmailSuffixes = new ImeEmailSuffixes(this);
+        imePrefixCompletions = new ImePrefixCompletions(this);
         // 必须在 super.onCreate() 之前：InputMethodService 在那里按这个主题建输入法窗口，之后再设会抛异常。按名字查是因为 core/ 要能脱离 Gradle 生成的 R 编译（check-host.sh 的 JVM 冒烟）；res/values/themes.xml 说明了这个主题为什么存在。
         // 五笔、拼音等版本的 applicationId 带后缀，资源表的包名仍是命名空间，两个都试。
         int theme = getResources().getIdentifier("Theme.MSIME.InputMethod", "style", getPackageName());
@@ -1417,6 +1420,12 @@ public final class MSIMEInputService extends InputMethodService {
 
     @Override public void onStartInputView(EditorInfo info, boolean restarting) {
         super.onStartInputView(info, restarting);
+        reloadPrefixCompletions();
+        if (InputViewRefreshPolicy.resumeStartup(session != 0, engineStartupPending(), connection != null,
+                info != null && EditorPolicy.useEngine(info.inputType), !runtimeOptionsForSnapshot.isEmpty())) {
+            message = "共享运行时准备中";
+            scheduleEngineStartup(runtimeOptionsForSnapshot, engineStartGeneration);
+        }
         Telemetry.inputViewShown(this);
         cancelInputViewRefresh();
         final long expectedGeneration = engineStartGeneration;
@@ -1458,6 +1467,7 @@ public final class MSIMEInputService extends InputMethodService {
         imeBottomRow.resetSpaceCursor();
         imeCalculator.clear();
         imeEmailSuffixes.clear();
+        imePrefixCompletions.clear();
         // 也覆盖 onFinishInputView(true)：那条路径不经过 finishInputViewPresentation。
         imeVoiceEntry.cancel();
         stop(true);
@@ -1756,13 +1766,15 @@ public final class MSIMEInputService extends InputMethodService {
     /**
      * runtime-options.json 里的偏好是首次安装时写下的出厂默认（见 Bootstrap.prepare），拿它建会话，引擎先按默认方案（全拼 26 键）起来，过一两秒实时偏好重载后才换成用户的方案，九键用户每次都看到键盘从 26 键跳成九键。建会话前在工作线程上读一次实时偏好换进去；读不到时照旧用原来那份。不允许学习的输入框照样把 learning 关掉。
      */
-    private static EngineStartOptions withLivePreferences(String optionsText, boolean suppressLearning) {
+    private EngineStartOptions withLivePreferences(String optionsText, boolean suppressLearning) {
         try {
             JSONObject options = new JSONObject(optionsText);
             String directory = InputViewValuePolicy.textOr(options, "preferences_directory", "");
             if (directory.isEmpty() || !new File(directory).isAbsolute())
                 return new EngineStartOptions(optionsText, null);
-            String response = NativeClient.loadPreferences(directory);
+            JSONObject loaded = app.msime.android.home.HostStore.loadPreferences(this);
+            if (loaded == null) return new EngineStartOptions(optionsText, null);
+            String response = new JSONObject().put("ok", true).put("value", loaded).toString();
             JSONObject envelope = new JSONObject(response);
             JSONObject live = JsonPolicy.strictTrue(envelope.opt("ok"))
                 ? envelope.getJSONObject("value").optJSONObject("preferences") : null;
@@ -1943,6 +1955,22 @@ public final class MSIMEInputService extends InputMethodService {
     void refreshLocalSettings() {
         localSettings = AndroidLocalSettings.load(this);
         applyLocalSettings();
+    }
+
+    private void reloadPrefixCompletions() {
+        final long generation = engineStartGeneration;
+        final InputConnection expected = connection;
+        imePrefixCompletions.clear();
+        if (expected == null) return;
+        preferencesWorker.execute(() -> {
+            CommonPhrasesStore.Result result = CommonPhrasesStore.load(this);
+            String aliases = AndroidLocalSettings.load(this).text(AndroidLocalSettings.PHRASE_ALIASES);
+            main.post(() -> {
+                if (generation != engineStartGeneration || connection != expected || result == null || !result.ok()) return;
+                imePrefixCompletions.setEntries(result.document(), aliases);
+                render();
+            });
+        });
     }
 
     /** 本地设置里由服务直接持有的几项。 */
@@ -2422,6 +2450,7 @@ public final class MSIMEInputService extends InputMethodService {
         rememberChineseScheme();
         preferencesSnapshot = accepted;
         if (!clipboardHistoryEnabled && clipboardHistory != null) {
+            LanClipboardRuntime.history(this, false);
             clipboardHistory.clearQuietly();
             // The cloud half does not depend on this switch; only a panel left with nothing to show closes.
             if (imePanels.clipboardPanelOpen() && imePanels.cloudClipboardAllowed()) imePanels.renderClipboardHistory();
@@ -4278,6 +4307,7 @@ public final class MSIMEInputService extends InputMethodService {
         imeCalculator.refresh();
         // 邮箱输入框里打到 `xxx@` 时，候选栏给出邮箱后缀（#6147）。
         imeEmailSuffixes.refresh();
+        render();
     }
 
     Button button(LinearLayout row, String label, Runnable action) {
@@ -5937,6 +5967,7 @@ public final class MSIMEInputService extends InputMethodService {
                 return;
             }
             if (clip.sensitive()) return;
+            if (clip.text().contains("msime1:")) return;
             String identity = clip.identity();
             if (!ClipboardCapturePolicy.captures(trigger, identity, handledClipIdentity())) return;
             // The shared store refuses rather than throws, and says which refusal it is. Deciding
@@ -7150,7 +7181,7 @@ public final class MSIMEInputService extends InputMethodService {
             if (overlayDrawn()) positionKeyboardSurface();
         });
         imeStyler.applyKeyboardSurfaceGeometry();
-        LinearLayout keyboard = LayoutPolicy.column(this);
+        LinearLayout keyboard = imeFrame.createKeyboard();
         // 停靠时键盘列按系统栏留出内边距（导航栏那一截画键盘底色），手势导航下再垫一条底栏（ImeBottomBar）；浮动时面板悬在应用上面，不留，系统栏的四边只用来限制面板能拖到哪里。
         keyboard.setOnApplyWindowInsetsListener((target, insets) -> {
             imeBottomBar.readInsets(insets);
@@ -8152,6 +8183,7 @@ public final class MSIMEInputService extends InputMethodService {
     }
 
     void render() {
+        imePrefixCompletions.update();
         // 候选栏跟随光标要先知道这个输入框报不报告光标位置。
         synchronizeCursorUpdates();
         // 浮动开关、外接键盘的候选条模式或候选栏跟随光标变了：先把窗口换成对应的布局，下面判断分离式键盘、单手模式时用的是新状态。
@@ -8215,12 +8247,12 @@ public final class MSIMEInputService extends InputMethodService {
         boolean hasHandwritingResults = handwriting && !handwritingResults.isEmpty()
             && handwritingCandidateToken != null;
         boolean hasEmailSuffixes = imeEmailSuffixes.active();
-        boolean idle = view == null || (InputViewValuePolicy.editingText(view).isEmpty()
+        boolean idle = (view == null || (InputViewValuePolicy.editingText(view).isEmpty()
             && "none".equals(InputViewValuePolicy.textOr(view, "local_mode", "none"))
             && (visibleCandidates == null || visibleCandidates.length() == 0)
             && !hasEnglishSuggestions
             && !hasEmailSuffixes
-            && !hasHandwritingResults);
+            && !hasHandwritingResults)) && !imePrefixCompletions.active();
         if (preedit != null) {
             // 读音的字号由 ImeStyler.applySkin 在 render 末尾统一设置，这里不再另设一份。
             String editingText = view == null ? "" : InputViewValuePolicy.editingText(view);
@@ -8324,7 +8356,7 @@ public final class MSIMEInputService extends InputMethodService {
         imeFrame.setKeysCollapsed(keysCollapsed);
         applyCaretCandidates(!idle || hasDiagnostic);
         // 候选条模式里空闲时工具栏总要显示：展开键在上面，「显示方式：隐藏」时整副键盘会只剩导航栏那一截。
-        boolean toolbarRow = !heightMode && idle && !hasDiagnostic && (!toolbarHidden || keysCollapsed);
+        boolean toolbarRow = !heightMode && idle && !hasDiagnostic;
         // 开始打字就收起「最近复制」：用户已经在输入别的内容了。
         if (!idle) recentClip.dismiss();
         long nowMs = System.currentTimeMillis();
@@ -8389,17 +8421,18 @@ public final class MSIMEInputService extends InputMethodService {
                 scriptShortcutButton.setStateDescription(outputState);
         }
         if (emojiShortcutButton != null) {
-            ViewPolicy.setVisible(emojiShortcutButton, toolbarEmoji);
+            ViewPolicy.setVisible(emojiShortcutButton, toolbarEmoji && !toolbarHidden);
             ViewPolicy.setEnabled(emojiShortcutButton, session != 0 && !emojiResources.isEmpty());
             ViewPolicy.setSelected(emojiShortcutButton, ViewPolicy.isVisible(emojiPanel));
         }
         if (phraseShortcutButton != null) {
-            ViewPolicy.setVisible(phraseShortcutButton, toolbarPhrase);
+            ViewPolicy.setVisible(phraseShortcutButton, toolbarPhrase && !toolbarHidden);
             ViewPolicy.setEnabled(phraseShortcutButton, session != 0 && !preferencesDirectory.isEmpty());
             ViewPolicy.setSelected(phraseShortcutButton, ViewPolicy.isVisible(phraseScroll));
         }
         if (clipboardShortcutButton != null) {
-            ViewPolicy.setVisible(clipboardShortcutButton, toolbarClipboard);
+            // 剪贴板固定在工具栏第二格，无需打开功能面板或翻页。
+            ViewPolicy.setVisible(clipboardShortcutButton, true);
             ViewPolicy.setEnabled(clipboardShortcutButton, CloudClipboardPanelPolicy.panelAvailable(
                 clipboardHistoryEnabled, imePanels.cloudClipboardAllowed()));
             ViewPolicy.setSelected(clipboardShortcutButton, imePanels.clipboardPanelOpen());
@@ -8482,7 +8515,7 @@ public final class MSIMEInputService extends InputMethodService {
             }
         }
         if (floatingShortcutButton != null) {
-            ViewPolicy.setVisible(floatingShortcutButton, toolbarFloating);
+            ViewPolicy.setVisible(floatingShortcutButton, toolbarFloating && !toolbarHidden);
             ViewPolicy.setSelected(floatingShortcutButton, floatingKeyboard);
             // 候选条模式里浮动不生效，按钮灰掉，免得点了没有反应。
             ViewPolicy.setEnabled(floatingShortcutButton, !hardwareKeyboardMode);
@@ -8490,13 +8523,13 @@ public final class MSIMEInputService extends InputMethodService {
                 floatingShortcutButton.setStateDescription(floatingKeyboard ? "已开启" : "已关闭");
         }
         if (textEditShortcutButton != null) {
-            ViewPolicy.setVisible(textEditShortcutButton, toolbarTextEdit);
+            ViewPolicy.setVisible(textEditShortcutButton, toolbarTextEdit && !toolbarHidden);
             ViewPolicy.setSelected(textEditShortcutButton, ViewPolicy.isVisible(textEditPanel));
             // 没有可编辑的输入框时面板打不开（ImeTextEditPanel.show 只给一句提示），按钮灰掉。
             ViewPolicy.setEnabled(textEditShortcutButton, connection != null);
         }
         if (schemeButton != null) {
-            ViewPolicy.setVisible(schemeButton, toolbarScheme);
+            ViewPolicy.setVisible(schemeButton, toolbarScheme && !toolbarHidden);
             ViewPolicy.setSelected(schemeButton,
                 ViewPolicy.isVisible(schemeScroll));
             schemeButton.setText(selectedScheme.glyph() + selectedScheme.badge(wubiProfile));
@@ -8513,7 +8546,7 @@ public final class MSIMEInputService extends InputMethodService {
             }
         }
         if (skinButton != null) {
-            ViewPolicy.setVisible(skinButton, toolbarSkin);
+            ViewPolicy.setVisible(skinButton, toolbarSkin && !toolbarHidden);
             ViewPolicy.setSelected(skinButton,
                 ViewPolicy.isVisible(skinScroll));
             // 同上：保存进行中的点按由 ImePanels.showSkinPicker 按 canSaveKeyboardSkin 忽略，图标不跟着变灰。
@@ -8554,6 +8587,7 @@ public final class MSIMEInputService extends InputMethodService {
         candidates.removeAllViews();
         if (verticalCandidates != null) verticalCandidates.removeAllViews();
         if (expandCandidates != null) ViewPolicy.hide(expandCandidates);
+        imePrefixCompletions.render(activeCandidates);
         if (view == null) {
             closeCandidatePanel();
             renderEnglishSuggestions(activeCandidates);

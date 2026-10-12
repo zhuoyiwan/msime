@@ -51,8 +51,8 @@ final class ImeToolbar {
     void installShortcutBar(Button dismissButton) {
         s.shortcutBar.removeAllViews();
         s.dismissShortcutButton = dismissButton;
-        Button[] buttons = {s.moreButton, s.emojiShortcutButton, s.phraseShortcutButton,
-            s.clipboardShortcutButton, s.skinButton, s.schemeButton, s.floatingShortcutButton,
+        Button[] buttons = {s.moreButton, s.clipboardShortcutButton, s.emojiShortcutButton, s.phraseShortcutButton,
+            s.skinButton, s.schemeButton, s.floatingShortcutButton,
             s.textEditShortcutButton, dismissButton};
         shortcutButtons = new Button[] {s.emojiShortcutButton, s.phraseShortcutButton,
             s.clipboardShortcutButton, s.skinButton, s.schemeButton, s.floatingShortcutButton,

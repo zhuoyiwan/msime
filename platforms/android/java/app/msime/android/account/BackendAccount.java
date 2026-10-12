@@ -155,9 +155,11 @@ public final class BackendAccount {
      * <p>In the main process this reads and refreshes the session itself. In any other process - the `:ime` keyboard - the access token comes from the main process through {@link AccountSessionProvider}, so only one process ever spends a refresh token. Sign-in and sign-out belong to the main process.
      */
     public BackendAccount(Context context) {
-        this(new AndroidAccountSessionStorage(context, SESSION_STORE), new HttpRequester(),
-            AccountSessionRoutingPolicy.ownsSession(Application.getProcessName(), context.getPackageName())
-                ? null : sessionOwner(context), BackendAccount::streamChat, CloudClipboardKeystore.deferred(context));
+        this(new SessionStore() {
+            public String load() { return null; }
+            public void save(String value) { throw new IllegalStateException("此改版已移除账号系统"); }
+            public void clear() { }
+        }, new HttpRequester(), null, BackendAccount::streamChat, null);
     }
 
     /** The account read and refreshed in this process, whatever process it is; only {@link AccountSessionProvider} uses this, in the main process. */

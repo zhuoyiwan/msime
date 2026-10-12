@@ -23,7 +23,7 @@ public enum PageId {
     AI_SKIN("AiSkinPage", "AI 设计皮肤", HostDeepLink.TAB_SETTINGS,
         "描述一句话生成", "配色", "按键音效", "按键动画", "生成皮肤"),
     KEYBOARD_OPTIONS("KeyboardOptionsPage", "键盘", HostDeepLink.TAB_SETTINGS,
-        "布局", "中文键盘", "中英键轮换其他语言", "九键左侧符号", "九键数字键盘左侧符号", "双拼键位提示", "键盘高度", "数字行", "横屏分离式键盘",
+        "布局", "数字键盘排列", "常用符号排列", "聊天布局", "电话布局", "计算器布局", "横排", "自定义数字顺序", "自定义符号", "中文键盘", "中英键轮换其他语言", "九键左侧符号", "九键数字键盘左侧符号", "双拼键位提示", "键盘高度", "数字行", "横屏分离式键盘",
         "浮动键盘", "物理键盘时候选栏跟随光标", "键盘底栏", "底部留白", "按键反馈", "按键音", "按键振动", "按键弹出预览", "按键动画", "手势",
         "滑动输入符号", "滑动方向", "下滑", "上滑", "九键滑动输入数字", "九键滑动距离", "滑行输入", "空格键滑动移动光标", "长按空格语音输入", "键盘工具栏", "显示方式", "表情", "常用语",
         "皮肤", "剪贴板", "输入方式", "文本编辑", "按键间距", "行间距", "剪贴板排列", "单列", "双列", "工具栏显示最近复制", "最近复制"),
@@ -43,6 +43,8 @@ public enum PageId {
     LEXICON_DETAIL("LexiconDetailPage", "词库详情", HostDeepLink.TAB_SETTINGS),
     PHRASES("PhrasesPage", "常用语", HostDeepLink.TAB_SETTINGS,
         "添加常用语", "修改常用语", "删除常用语", "浏览社区短语包"),
+    PREFIX_COMPLETION("PrefixCompletionPage", "前缀补全", HostDeepLink.TAB_SETTINGS,
+        "添加补全词条", "修改或删除词条", "姓名", "手机号", "身份证", "补全缩写", "本机词条"),
     VOICE("VoicePage", "语音输入", HostDeepLink.TAB_SETTINGS,
         "识别服务", "鉴权方式", "App ID", "API Key", "密钥", "识别接口", "资源 ID", "模型", "接口地址",
         "豆包", "SiliconFlow", "OpenAI", "Groq", "EveryAPI", "Mistral", "百炼",
@@ -68,6 +70,8 @@ public enum PageId {
     CLIPBOARD_EDIT("ClipboardEditPage", "编辑剪贴板记录", HostDeepLink.TAB_SETTINGS),
     CLIPBOARD_SEARCH("ClipboardSearchPage", "剪贴板历史", HostDeepLink.TAB_SETTINGS,
         "搜索剪贴板", "剪贴板记录", "复制过的文字"),
+    LAN_CLIPBOARD("LanClipboardPage", "局域网剪贴板", HostDeepLink.TAB_SETTINGS,
+        "同步系统剪贴板", "立即读取并同步", "剪贴板历史", "设备配对", "扫码配对", "从图片识别", "生成配对二维码", "保存并连接", "已配对设备", "移除设备"),
     PROFILE("ProfilePage", "个人资料", HostDeepLink.TAB_ACCOUNT,
         "账号", "昵称", "水杉 ID", "邮箱", "登录方式", "关联", "云端数据", "导出我的数据", "退出登录", "注销账号"),
     BACKUP("BackupPage", "备份与恢复", HostDeepLink.TAB_ACCOUNT,
@@ -75,7 +79,7 @@ public enum PageId {
     DEVICES("DevicesPage", "我的设备", HostDeepLink.TAB_ACCOUNT,
         "设备"),
     PRIVACY("PrivacyPage", "隐私", HostDeepLink.TAB_ACCOUNT,
-        "本地优先", "联网功能", "本机数据", "剪贴板历史", "匿名使用统计", "用水杉账号翻译候选", "隐私模式",
+        "本地优先", "本机数据", "剪贴板历史", "隐私模式", "用水杉账号翻译候选", "匿名使用统计",
         "隐私政策"),
     /** 一类社区作品的完整列表，参数 `kind` 选类型（见 {@link CommunityFragment#ARG_KIND}）；从各功能页的「浏览更多…」进来，本身不进设置搜索，搜索里出现的是那几个功能页。 */
     COMMUNITY("CommunityFragment", "社区", HostDeepLink.TAB_SETTINGS);
@@ -107,7 +111,8 @@ public enum PageId {
     public List<String> keywords() { return keywords; }
 
     /** 能不能从搜索直接打开：要参数才能打开的页面不能。 */
-    public boolean searchable() { return !keywords.isEmpty(); }
+    public boolean available() { return this != PROFILE && this != DEVICES && this != CLOUD_CLIPBOARD && this != COMMUNITY && this != AI_SKIN && this != FEEDBACK && this != DOWNLOAD; }
+    public boolean searchable() { return available() && !keywords.isEmpty(); }
 
     /** 标题或任一关键词包含查询（忽略大小写）时为真；空查询不匹配任何页面。 */
     public boolean matches(String query) {
@@ -132,7 +137,8 @@ public enum PageId {
     @Nullable public static PageId fromName(@Nullable String name) {
         if (name == null) return null;
         try {
-            return valueOf(name);
+            PageId page = valueOf(name);
+            return page.available() ? page : null;
         } catch (IllegalArgumentException unknown) {
             return null;
         }

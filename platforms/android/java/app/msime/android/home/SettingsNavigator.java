@@ -40,6 +40,7 @@ public final class SettingsNavigator {
 
     /** HomeActivity 处理深链时也走这里；已经切好 tab 的情况下同样适用。 */
     static void push(HomeActivity home, PageId page, @Nullable Bundle args) {
+        if (!page.available()) { MsToast.show(home, "此改版使用本地功能与局域网互通"); return; }
         FragmentManager manager = home.getSupportFragmentManager();
         // 保存状态之后不能再提交导航；这时 Activity 已不在前台，用户也点不到任何入口，丢掉这次请求比崩溃好。
         if (manager.isStateSaved() || home.isFinishing()) return;

@@ -9,6 +9,11 @@ public final class InputViewRefreshPolicySmoke {
 
     public static void main(String[] args) {
         Connection connection = new Connection();
+        check(InputViewRefreshPolicy.resumeStartup(false, false, true, true, true), "cancelled startup resumes");
+        check(!InputViewRefreshPolicy.resumeStartup(false, true, true, true, true), "pending startup not duplicated");
+        check(!InputViewRefreshPolicy.resumeStartup(true, false, true, true, true), "live session retained");
+        check(!InputViewRefreshPolicy.resumeStartup(false, false, true, false, true), "password/direct editor excluded");
+        check(!InputViewRefreshPolicy.resumeStartup(false, false, false, true, true), "connection required");
         check(InputViewRefreshPolicy.shouldRefresh(7, 7, connection, connection, true, false),
             "matching editor view should refresh");
         check(!InputViewRefreshPolicy.shouldRefresh(6, 7, connection, connection, true, false),

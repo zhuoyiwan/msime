@@ -35,6 +35,9 @@ final class AppMode {
         int overlay = seasonOverlay(store.getString(SEASON_KEY, null));
         // 基础主题本身就是秋杉，没有缓存时不必再叠一层。
         if (overlay != 0) context.getTheme().applyStyle(overlay, true);
+        String season = store.getString(SEASON_KEY, "");
+        if (season != null && season.startsWith("wallpaper-") && context instanceof android.app.Activity)
+            com.google.android.material.color.DynamicColors.applyToActivityIfAvailable((android.app.Activity) context);
     }
 
     /** 季节对应的主题叠加层；不认识的值和 null 都回到基础主题的秋杉，返回 0 表示不用叠加。 */

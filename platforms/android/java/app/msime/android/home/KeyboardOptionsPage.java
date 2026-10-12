@@ -26,6 +26,7 @@ import app.msime.android.ColorPolicy;
 import app.msime.android.KeyboardFeedbackPreferences;
 import app.msime.android.KeyboardFeedbackStore;
 import app.msime.android.KeyboardScheme;
+import app.msime.android.KeyboardArrangementPolicy;
 import app.msime.android.KeyboardSkin;
 import app.msime.android.NineKeySidebarPolicy;
 import app.msime.android.NineKeySwipePolicy;
@@ -48,7 +49,7 @@ public final class KeyboardOptionsPage extends DetailPage {
     private static final String[] ANIMATION_LABELS = {"弹起", "涟漪", "发光", "浮起", "无"};
     /** 可开关的六个工具栏按钮：存储键与行名。共享偏好的写 `touch_toolbar` 的成员名，本地设置的写完整键名。 */
     private static final String[][] TOOLBAR_BUTTONS = {
-        {"emoji", "表情"}, {AndroidLocalSettings.TOOLBAR_PHRASE, "常用语"}, {"clipboard", "剪贴板"}, {"skin", "皮肤"},
+        {"emoji", "表情"}, {AndroidLocalSettings.TOOLBAR_PHRASE, "常用语"}, {"skin", "皮肤"},
         {AndroidLocalSettings.TOOLBAR_SCHEME, "输入方式"}, {AndroidLocalSettings.TOOLBAR_FLOATING, "浮动键盘"},
         {AndroidLocalSettings.TOOLBAR_TEXT_EDIT, "文本编辑"},
     };
@@ -103,6 +104,12 @@ public final class KeyboardOptionsPage extends DetailPage {
             : pair == null ? "当前方案只有一种键盘，在「输入」里换方案" : "本版本只有一种键盘";
         layout.nav("中文键盘", note, layoutLabel(current),
             pairOffered ? () -> pickLayout(current, pair) : null);
+        String numberPreset = settings.choice(AndroidLocalSettings.NUMBER_ARRANGEMENT);
+        layout.nav("数字键盘排列", "26 键按 123 后的排列；切换不改变拼音方案",
+            KeyboardArrangementPolicy.title(numberPreset), () -> pickNumberArrangement(settings));
+        layout.nav("常用符号排列", "自定义 #+= 页前两行，每行 4–10 个字符；功能键保留",
+            settings.text(AndroidLocalSettings.CUSTOM_SYMBOL_ROWS).isEmpty() ? "默认" : "自定义",
+            () -> editSymbolArrangement(settings.text(AndroidLocalSettings.CUSTOM_SYMBOL_ROWS)));
         // 本版本没有任何其他语言键盘（五笔版、拼音版）时不列这一项。
         if (offersOtherLanguage(edition)) {
             layout.toggle("中英键轮换其他语言",
@@ -210,7 +217,8 @@ public final class KeyboardOptionsPage extends DetailPage {
         boolean hidden = settings.bool(AndroidLocalSettings.TOOLBAR_HIDDEN);
         GroupCard bar = GroupCard.add(target, "键盘工具栏");
         bar.addView(toolbarPreview(requireContext(), toolbar, settings, state.skin()));
-        bar.nav("显示方式", null, hidden ? "隐藏" : "输入时显示", () -> pickToolbarMode(hidden));
+        bar.nav("显示方式", "精简模式保留更多、剪贴板和收起键", hidden ? "精简" : "完整", () -> pickToolbarMode(hidden));
+        bar.note("剪贴板入口固定在工具栏前部，一次点击即可打开历史。");
         for (String[] button : TOOLBAR_BUTTONS) {
             String member = button[0];
             GroupCard.Row row = bar.toggle(button[1], null, toolbarButton(toolbar, settings, member),
@@ -255,10 +263,12 @@ public final class KeyboardOptionsPage extends DetailPage {
             View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         int icon = ColorPolicy.parse(skin.toolbarIcon(), ThemeColorPolicy.subText(context));
         if (settings.bool(AndroidLocalSettings.TOOLBAR_HIDDEN)) {
-            TextView note = ViewPolicy.styledLabel(context, "工具栏已隐藏，只显示候选条", 13, 400, icon);
-            plate.addView(note);
+            addChip(context, plate, "更多", icon);
+            addChip(context, plate, "剪贴板", icon);
+            addChip(context, plate, "收起", icon);
         } else {
             addChip(context, plate, "水杉", ColorPolicy.parse(skin.accentText(), ThemeColorPolicy.accent(context)));
+            addChip(context, plate, "剪贴板", icon);
             for (String[] button : TOOLBAR_BUTTONS) {
                 if (toolbarButton(toolbar, settings, button[0])) addChip(context, plate, button[1], icon);
             }
@@ -339,6 +349,58 @@ public final class KeyboardOptionsPage extends DetailPage {
         dialog.show();
     }
 
+    private void pickNumberArrangement(AndroidLocalSettings.Snapshot settings) {
+        String selected = settings.choice(AndroidLocalSettings.NUMBER_ARRANGEMENT);
+        OptionSheet sheet = new OptionSheet(requireContext(), "数字键盘排列",
+            "电话式：123 / 456 / 789\n聊天常用：左侧标点、中间数字、右侧操作键\n计算器式：789 / 456 / 123\n数字横排：1–0，下面是常用符号");
+        for (String preset : new String[] {KeyboardArrangementPolicy.PHONE,
+                KeyboardArrangementPolicy.CHAT, KeyboardArrangementPolicy.CALCULATOR,
+                KeyboardArrangementPolicy.ROW, KeyboardArrangementPolicy.CUSTOM}) {
+            sheet.option(KeyboardArrangementPolicy.title(preset), preset.equals(selected), () -> {
+                if (KeyboardArrangementPolicy.CUSTOM.equals(preset))
+                    editDigitArrangement(settings.text(AndroidLocalSettings.CUSTOM_DIGIT_ORDER));
+                else KeyboardSheets.saveLocal(this, AndroidLocalSettings.NUMBER_ARRANGEMENT, preset, this::reload, this::reload);
+            });
+        }
+        sheet.show();
+    }
+
+    private void editDigitArrangement(String current) {
+        InputDialog dialog = new InputDialog(requireContext(), "自定义数字顺序",
+            "填入 0–9，每个数字恰好一次。前九个按三行排列，最后一个在底行；例如 7894561230");
+        dialog.addField("1234567890", current, android.text.InputType.TYPE_CLASS_NUMBER);
+        dialog.setValidator(values -> KeyboardArrangementPolicy.validDigits(values.get(0)));
+        dialog.setPrimary("保存并使用", values -> HostTask.run(this, context -> {
+            try {
+                AndroidLocalSettings.update(context, java.util.Map.of(
+                    AndroidLocalSettings.CUSTOM_DIGIT_ORDER, values.get(0).trim(),
+                    AndroidLocalSettings.NUMBER_ARRANGEMENT, KeyboardArrangementPolicy.CUSTOM));
+                return true;
+            } catch (java.io.IOException error) { return false; }
+        }, saved -> {
+            if (!Boolean.TRUE.equals(saved)) MsToast.show(requireContext(), "保存失败，请重试");
+            reload();
+        }));
+        dialog.show();
+    }
+
+    private void editSymbolArrangement(String current) {
+        String initial = current.isEmpty() ? KeyboardArrangementPolicy.DEFAULT_SYMBOLS : current;
+        String[] rows = initial.split("\\n", -1);
+        InputDialog dialog = new InputDialog(requireContext(), "常用符号排列",
+            "每行 4–10 个字符，用空格分开，每个按键最多 4 个字符。按填写的顺序显示和输入；两行都留空恢复默认。");
+        dialog.addField("第一行，例如 [ ] { } # % ^ * + =", rows[0], 0);
+        dialog.addField("第二行，例如 _ \\ | ~ < > € & @ !", rows[1], 0);
+        dialog.setValidator(values -> (values.get(0).isBlank() && values.get(1).isBlank())
+            || KeyboardArrangementPolicy.symbolRows(values.get(0) + "\n" + values.get(1)) != null);
+        dialog.setPrimary("保存", values -> KeyboardSheets.saveLocal(this,
+            AndroidLocalSettings.CUSTOM_SYMBOL_ROWS,
+            values.get(0).isBlank() && values.get(1).isBlank() ? null
+                : KeyboardArrangementPolicy.normalizeSymbols(values.get(0) + "\n" + values.get(1)),
+            this::reload, this::reload));
+        dialog.show();
+    }
+
     private void pickAnimation(String selected, GroupCard.Row row) {
         OptionSheet sheet = new OptionSheet(requireContext(), "按键动画", null);
         for (int index = 0; index < ANIMATIONS.length; index++) {
@@ -402,8 +464,8 @@ public final class KeyboardOptionsPage extends DetailPage {
 
     private void pickToolbarMode(boolean hidden) {
         OptionSheet sheet = new OptionSheet(requireContext(), "显示方式", null);
-        sheet.option("输入时显示", !hidden, () -> saveToolbar(AndroidLocalSettings.TOOLBAR_HIDDEN, false));
-        sheet.option("隐藏", hidden, () -> saveToolbar(AndroidLocalSettings.TOOLBAR_HIDDEN, true));
+        sheet.option("完整", !hidden, () -> saveToolbar(AndroidLocalSettings.TOOLBAR_HIDDEN, false));
+        sheet.option("精简（保留剪贴板入口）", hidden, () -> saveToolbar(AndroidLocalSettings.TOOLBAR_HIDDEN, true));
         sheet.show();
     }
 

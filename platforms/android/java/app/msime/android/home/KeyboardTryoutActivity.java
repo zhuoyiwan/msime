@@ -19,7 +19,7 @@ public final class KeyboardTryoutActivity extends AppCompatActivity {
         // 重建时 FragmentManager 自己恢复页面，只在第一次创建时加。
         if (state == null) {
             getSupportFragmentManager().beginTransaction()
-                .add(android.R.id.content, ChatFragment.standalone())
+                .add(android.R.id.content, new LocalTryoutFragment())
                 .commit();
         }
     }

@@ -145,8 +145,11 @@ public final class SplitKeyboardPolicySmoke {
 
     private static void designLayerCuts() {
         for (boolean chinese : new boolean[] {true, false}) {
-            for (List<List<KeyboardLayout.LayerKey>> layer : List.of(
-                    KeyboardLayout.numberLayer(chinese), KeyboardLayout.moreSymbolLayer(chinese))) {
+            for (List<KeyboardLayout.LayerKey> row : KeyboardLayout.numberLayer(chinese)) {
+                check(row.size() == 4 && SplitKeyboardPolicy.cutIndex(weights(row)) == 2,
+                    "phone number grid splits between its second and third columns");
+            }
+            for (List<List<KeyboardLayout.LayerKey>> layer : List.of(KeyboardLayout.moreSymbolLayer(chinese))) {
                 check(SplitKeyboardPolicy.cutIndex(weights(layer.get(0))) == 5, "first design row splits 5 | 5");
                 check(SplitKeyboardPolicy.cutIndex(weights(layer.get(1))) == 5, "second design row splits 5 | 5");
                 List<KeyboardLayout.LayerKey> third = layer.get(2);
@@ -177,7 +180,7 @@ public final class SplitKeyboardPolicySmoke {
                 checkCenteredSpace(noComma, space, "action row without the comma");
             }
         }
-        List<KeyboardLayout.LayerKey> bottom = KeyboardLayout.numberLayer(true).get(3);
+        List<KeyboardLayout.LayerKey> bottom = KeyboardLayout.moreSymbolLayer(true).get(3);
         int space = -1;
         for (int index = 0; index < bottom.size(); index++)
             if (bottom.get(index).kind() == KeyboardLayout.LayerKeyKind.SPACE) space = index;

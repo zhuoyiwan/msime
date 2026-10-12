@@ -147,7 +147,22 @@ fn query_mixed(
         Cow::Owned(code.to_ascii_lowercase())
     };
     let prefixes = QueryPrefixes::new(lower.as_ref(), scheme, profile);
-    query_readings(catalog, prefixes.iter(), others_db, &|_| true)
+    let mut rows = query_readings(catalog, prefixes.iter(), others_db, &|_| true);
+    // 旧词库允许分隔编码；原编码没有结果时才回退到紧凑拼音，避免改变旧条目的顺序。
+    if rows.is_empty() && lower.contains('\'') {
+        let compact = lower.replace('\'', "");
+        if !compact.is_empty() {
+            let prefixes = QueryPrefixes::new(&compact, scheme, profile);
+            rows = query_readings(catalog, prefixes.iter(), others_db, &|_| true);
+        }
+    }
+    // 编码只用于检索；选中 Emoji 必须消费完整的原始输入（含音节分隔符和双拼码）。
+    for row in &mut rows {
+        if row.item.pinyin != lower.as_ref() {
+            row.item.pinyin = lower.to_string();
+        }
+    }
+    rows
 }
 
 /// 九宫格混排：依次按 `readings`（小写全拼，可能性高的在前）查 emoji，见 `query_readings`。
@@ -297,7 +312,7 @@ fn query(
     let Some(database) = open_local_database(others_db) else {
         return LocalQueryResult::failure(catalog.unavailable);
     };
-    let entries = match read(
+    let mut entries = match read(
         &lock(&database),
         catalog.sql,
         prefixes.iter(),
@@ -308,6 +323,22 @@ fn query(
         // Reported without SQLite's text, which could name the path or the typed code (emoji_query.cpp:98-127).
         Err(_) => return LocalQueryResult::failure(catalog.query_failed),
     };
+    if entries.is_empty() && lower.contains('\'') {
+        let compact = lower.replace('\'', "");
+        if !compact.is_empty() {
+            let prefixes = QueryPrefixes::new(&compact, scheme, profile);
+            entries = match read(
+                &lock(&database),
+                catalog.sql,
+                prefixes.iter(),
+                prefixes.len(),
+                limit,
+            ) {
+                Ok(entries) => entries,
+                Err(_) => return LocalQueryResult::failure(catalog.query_failed),
+            };
+        }
+    }
     let count = entries.len().min(limit);
     let candidates = entries
         .into_iter()
@@ -619,6 +650,10 @@ mod tests {
             query_mixed_emoji("MeiGuo", quanpin, &path, &QUANPIN_ONLY),
             flags
         );
+        let separated = query_mixed_emoji("mei'guo", quanpin, &path, &QUANPIN_ONLY);
+        assert_eq!(mixed_words(&separated), mixed_words(&flags));
+        assert_eq!(separated[0].item.pinyin, "mei'guo");
+        assert!(query_mixed_emoji("'''", quanpin, &path, &QUANPIN_ONLY).is_empty());
         assert!(query_mixed_emoji("mei guo", quanpin, &path, &QUANPIN_ONLY).is_empty());
 
         let kaomoji = query_mixed_kaomoji("hx", quanpin, &path, &QUANPIN_ONLY);

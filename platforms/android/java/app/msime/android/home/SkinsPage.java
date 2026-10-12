@@ -60,14 +60,6 @@ public final class SkinsPage extends ReloadingDetailPage {
         boolean dark = AppMode.dark(requireContext());
         String season = KeyboardSheets.seasonTitle(AppThemeController.cachedSeason(requireContext()));
         HostTask.run(this, context -> read(context, dark, season), this::render);
-        // 每次打开这一页最多看一次缓存新旧，过期就重拉；重拉完再读一遍，新的社区皮肤就出现在下面那一组里。
-        if (catalogue == Catalogue.UNCHECKED) {
-            catalogue = Catalogue.LOADING;
-            CommunitySkinCatalogue.refresh(this, false, refreshed -> {
-                catalogue = refreshed == null ? Catalogue.FAILED : Catalogue.READY;
-                reload();
-            });
-        }
     }
 
     @Nullable private static Model read(Context context, boolean systemDark, String season) {
@@ -119,7 +111,7 @@ public final class SkinsPage extends ReloadingDetailPage {
                 android.util.Log.w("MSIMESettings", "Custom skin library unreadable", error);
             }
         }
-        return new Model(themes, designs, community(directory, designs, storedKey, systemDark));
+        return new Model(themes, designs, List.of());
     }
 
     /** 社区目录缓存里还没存进皮肤库的前几款；与皮肤库里某个设计画出来一样的也不列，和键盘皮肤面板的去重相同。 */
@@ -155,14 +147,12 @@ public final class SkinsPage extends ReloadingDetailPage {
         Context context = requireContext();
         List<View> themeCards = new ArrayList<>(model.themes().size() + 1);
         for (Card card : model.themes()) themeCards.add(card(context, card));
-        if (!AiSkinPage.hidden(context)) themeCards.add(aiCard(context));
         grid(target, "皮肤", themeCards);
         if (!model.designs().isEmpty()) {
             List<View> designCards = new ArrayList<>(model.designs().size());
             for (Card card : model.designs()) designCards.add(card(context, card));
             grid(target, "我的设计", designCards);
         }
-        renderCommunity(target, context, model.community());
     }
 
     /** 「社区皮肤」：缓存里的前几款，末尾一行进完整列表。缓存是空的时候说明为什么空。 */

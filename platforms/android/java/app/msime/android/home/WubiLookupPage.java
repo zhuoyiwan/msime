@@ -128,9 +128,9 @@ public final class WubiLookupPage extends DetailPage {
             String profile = KeyboardScheme.normalizedWubiProfile(preferences == null ? KeyboardScheme.WUBI_86
                 : InputViewValuePolicy.textOr(preferences, "wubi_profile", KeyboardScheme.WUBI_86));
             JSONObject request = new JSONObject()
-                .put("options", new JSONObject(CloudSync.hostOptions(context)))
+                .put("options", new JSONObject(LocalData.hostOptions(context)))
                 .put("action", new JSONObject().put("operation", "wubi_codes").put("text", text));
-            JSONObject value = CloudSync.nativeValue(NativeClient.personalDictionaryRequest(request.toString()));
+            JSONObject value = LocalData.nativeValue(NativeClient.personalDictionaryRequest(request.toString()));
             JSONArray characters = value.optJSONArray("characters");
             if (characters == null) return Result.failure();
             List<WubiCodeLookupPolicy.Codes> listed = new ArrayList<>(characters.length());

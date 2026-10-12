@@ -86,10 +86,11 @@ final class ImeStyler {
             return false;
         seedCheckedAt = now;
         String theme = s.localSettings.choice(AndroidLocalSettings.APP_THEME);
+        if (s.localSettings.bool(AndroidLocalSettings.WALLPAPER_COLORS)) theme = "wallpaper";
         int month = LocalDate.now(ZoneId.systemDefault()).getMonthValue();
-        if (seed != null && theme.equals(seedTheme) && month == seedMonth) return false;
+        if (!"wallpaper".equals(theme) && seed != null && theme.equals(seedTheme) && month == seedMonth) return false;
         AppThemePalette.Seed next = AppThemePalette.Seed.fromResolved(
-            AppThemeResolver.resolve(theme, month, false), AppThemeResolver.resolve(theme, month, true));
+            AppThemeResolver.resolve(s, theme, month, false), AppThemeResolver.resolve(s, theme, month, true));
         if (next == null) next = AppThemePalette.Seed.AUTUMN;
         boolean changed = seed == null || !seed.id.equals(next.id) || !seed.season.equals(next.season);
         seedTheme = theme;
@@ -163,6 +164,16 @@ final class ImeStyler {
 
     /** {@code adjustment} 是当前窗口里实际要画的调整量（{@link KeyboardGeometry#windowHeightAdjustment}），整棵树用同一个值。 */
     private void applyKeyboardHeight(View node, int adjustment) {
+        applyKeyboardHeight(node, adjustment, 1f, false);
+    }
+
+    /** 测量时直接写布局参数，避免每轮恢复自然高度又触发一次 requestLayout。 */
+    void measureKeyboardHeight(View node, float scale) {
+        applyKeyboardHeight(node, KeyboardHeightPolicy.windowHeightAdjustment(
+            s.touchKeyboardHeightAdjustment, s.getResources().getConfiguration().screenHeightDp), scale, true);
+    }
+
+    private void applyKeyboardHeight(View node, int adjustment, float scale, boolean measuring) {
         Object tag = node.getTag();
         if (tag instanceof MSIMEInputService.KeyboardHeightRole) {
             MSIMEInputService.KeyboardHeightRole role = (MSIMEInputService.KeyboardHeightRole) tag;
@@ -178,14 +189,14 @@ final class ImeStyler {
             height += s.halfSpacingPixels(s.touchRowSpacingTenths) * 2 * role.rowSpacings;
             if (node.getLayoutParams() != null) {
                 android.view.ViewGroup.LayoutParams params = node.getLayoutParams();
-                params.height = height;
-                node.setLayoutParams(params);
+                params.height = Math.max(1, Math.round(height * scale));
+                if (!measuring) node.setLayoutParams(params);
             }
         }
         if (node instanceof android.view.ViewGroup) {
             android.view.ViewGroup group = (android.view.ViewGroup) node;
             for (int index = 0; index < group.getChildCount(); index++)
-                applyKeyboardHeight(group.getChildAt(index), adjustment);
+                applyKeyboardHeight(group.getChildAt(index), adjustment, scale, measuring);
         }
     }
 

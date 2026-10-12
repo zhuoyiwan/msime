@@ -125,8 +125,10 @@ public final class AboutPage extends DetailPage {
 
     @Override protected void buildContent(LinearLayout column, Bundle args) {
         Context context = requireContext();
-        boolean play = UpdateJobService.installedFromPlay(context);
+        // 改版不指向上游自动更新，避免覆盖本地功能与独立签名。
+        boolean play = true;
         column.addView(header(context, play));
+        GroupCard.add(column, null).note("zhuoyiwan 改版 · 增加 Windows / Android 局域网剪贴板互通");
 
         if (!play) {
             GroupCard updates = GroupCard.add(column, "更新");
@@ -150,7 +152,7 @@ public final class AboutPage extends DetailPage {
         links.nav("官网", null, "msime.app", () -> openLink(context, SITE));
         links.nav("隐私政策", null, null, () -> openLink(context, PRIVACY));
         GroupCard.Row licences = links.nav("开源许可", null, null, this::showLicences);
-        if (play) {
+        if (UpdateJobService.installedFromPlay(context)) {
             links.nav("给我们评分", null, null, () -> openLink(context,
                 "market://details?id=" + context.getPackageName()));
         }

@@ -71,8 +71,8 @@ public final class PhrasesPage extends DetailPage {
         GroupCard add = GroupCard.add(target, null);
         add.button("添加常用语", null, "添加", this::showAddDialog);
         // 社区短语包装进来就在这一页里；浏览和添加在社区短语的完整列表里，表达页的「发现短语」也通向那里。
-        add.nav("浏览社区短语包", "别人分享的短语包，添加后出现在这里", null,
-            () -> CommunityFragment.browse(requireContext(), CommunityRequest.Kind.PHRASE));
+        add.nav("前缀补全", "设置常用语的输入缩写", null,
+            () -> SettingsNavigator.open(requireContext(), PageId.PREFIX_COMPLETION, null));
     }
 
     private void remove(CommonPhrasesStore.Phrase phrase) {

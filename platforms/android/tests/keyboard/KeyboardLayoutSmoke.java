@@ -42,23 +42,23 @@ public final class KeyboardLayoutSmoke {
         // 新设计的 123 层（中文）。
         List<List<KeyboardLayout.LayerKey>> number = KeyboardLayout.numberLayer(true);
         check(number.size() == 4);
-        check(texts(number.get(0)).equals(List.of("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")));
-        check(texts(number.get(1)).equals(List.of("-", "/", "：", "；", "（", "）", "¥", "@", "“", "”")));
-        check(texts(number.get(2)).equals(List.of("#+=", "。", "，", "、", "？", "！", "⌫")));
-        check(number.get(2).get(0).description().equals("更多符号"));
-        check(number.get(2).get(6).description().equals("删除"));
+        check(texts(number.get(0)).equals(List.of("1", "2", "3", "⌫")));
+        check(texts(number.get(1)).equals(List.of("4", "5", "6", "空格")));
+        check(texts(number.get(2)).equals(List.of("7", "8", "9", "#+=")));
+        check(number.get(2).get(3).description().equals("更多符号"));
+        check(number.get(0).get(3).description().equals("删除"));
         List<KeyboardLayout.LayerKey> bottom = number.get(3);
-        check(texts(bottom).equals(List.of("拼音", "😀", "空格", "换行")));
+        check(texts(bottom).equals(List.of("拼音", ".", "0", "换行")));
         check(bottom.get(0).description().equals("切换到字母键盘")
             && bottom.get(0).kind() == KeyboardLayout.LayerKeyKind.LETTERS);
-        check(bottom.get(1).kind() == KeyboardLayout.LayerKeyKind.EMOJI);
+        check(bottom.get(1).kind() == KeyboardLayout.LayerKeyKind.CHARACTER);
         float total = 0;
         for (KeyboardLayout.LayerKey key : bottom) total += key.weight();
-        check(Math.abs(total - 10.2f) < 1e-4);
+        check(Math.abs(total - 4f) < 1e-4);
         // 英文 123 层是 ASCII 版，底行返回键为 ABC。
         List<List<KeyboardLayout.LayerKey>> english = KeyboardLayout.numberLayer(false);
-        check(texts(english.get(1)).equals(List.of("-", "/", ":", ";", "(", ")", "$", "@", "\"", "'")));
-        check(texts(english.get(2)).equals(List.of("#+=", ".", ",", "?", "!", "…", "⌫")));
+        check(texts(english.get(1)).equals(texts(number.get(1))));
+        check(texts(english.get(2)).equals(texts(number.get(2))));
         check(english.get(3).get(0).text().equals("ABC")
             && english.get(3).get(0).description().equals("切换到字母键盘"));
         // 中文模式关掉中文标点：标点和符号是半角英文，返回键仍是「拼音」。0.2.0 起这一层只看中英文模式，关掉中文标点照样上屏「，」。

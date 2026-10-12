@@ -36,9 +36,10 @@ final class AppThemeController {
     static boolean follow(Context context, @Nullable JSONObject preferences) {
         if (preferences == null) return false;
         String theme = AndroidLocalSettings.load(context).choice(AndroidLocalSettings.APP_THEME);
+        if (AndroidLocalSettings.load(context).bool(AndroidLocalSettings.WALLPAPER_COLORS)) theme = "wallpaper";
         int month = LocalDate.now(ZoneId.systemDefault()).getMonthValue();
-        JSONObject light = AppThemeResolver.resolve(theme, month, false);
-        JSONObject dark = AppThemeResolver.resolve(theme, month, true);
+        JSONObject light = AppThemeResolver.resolve(context, theme, month, false);
+        JSONObject dark = AppThemeResolver.resolve(context, theme, month, true);
         if (light == null || dark == null || AppThemePalette.Seed.fromResolved(light, dark) == null) return false;
         String season = light.optString("season", "");
         SharedPreferences store = store(context);
