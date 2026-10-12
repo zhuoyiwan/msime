@@ -76,8 +76,16 @@ PLIST
 ditto "$source_app" "$work/MSIME-zhuoyiwan.app"
 staged="$work/MSIME-zhuoyiwan.app"
 xattr -dr com.apple.quarantine "$staged" 2>/dev/null || true
+# 输入法放在 Resources 而非系统约定的嵌套代码目录，不能依赖外层 --deep 自动重签它。
+input_method="$staged/Contents/Resources/水杉输入法.app"
+test -d "$input_method"
 codesign --force --deep --options runtime --entitlements "$work/local.entitlements" \
+  --keychain "$keychain" --sign "$identity" "$input_method"
+codesign --force --options runtime --entitlements "$work/local.entitlements" \
+  --keychain "$keychain" --sign "$identity" "$staged/Contents/MacOS/msime-mcp"
+codesign --force --options runtime --entitlements "$work/local.entitlements" \
   --keychain "$keychain" --sign "$identity" "$staged"
+codesign --verify --deep --strict "$input_method"
 codesign --verify --deep --strict "$staged"
 
 if [ -d "$destination" ]; then
