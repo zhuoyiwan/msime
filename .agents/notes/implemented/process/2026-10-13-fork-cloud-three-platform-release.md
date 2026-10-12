@@ -26,4 +26,4 @@ Android 签名脚本允许显式证书别名，改版指定 `zhuoyiwan-android`�
 
 构建时间增加，任一平台或设备门禁失败都会保留草稿并阻止发布。Actions 状态和摘要核对才构成云端交付事实，本地编译不是发布完成。工作流 actionlint、来源脚本的来源/摘要/草稿恢复拒绝测试在 Windows 仓通过；实际运行与最终下载链接记录在 GitHub Release。
 
-本机 Windows quick 已运行但失败，原 HEAD 对照证实账号命名、主题共享标题、同步信号路由、剪贴板大小文本检查和语音默认配置检查已有失败，另外存在 fcntl、Unix 路径和 pipe-only 工具链限制；没有新增 known-failures 豁免。示例资源视图在 Windows 用文件复制替代无条件 Unix symlink；input-runtime 的 JSON 测试显式导入宏，仅 Unix socket 用例按平台编译。引擎 all-targets 与 runtime lib/tests 编译通过。全量引擎本机 1785 通过、16 失败、14 ignored；剩余失败都在原 HEAD 基线复现，Linux 云端仍要求全量通过。
+本机 Windows quick 已运行但失败，原 HEAD 对照证实账号命名、主题共享标题、同步信号路由、剪贴板大小文本检查和语音默认配置检查已有失败，另外存在 fcntl、Unix 路径和 pipe-only 工具链限制；没有新增 known-failures 豁免。语音默认检查随后与 Android 改版实际配置对齐，设备 client-core 仍完整执行。示例资源视图在 Windows 用文件复制替代无条件 Unix symlink；input-runtime 的 JSON 测试显式导入宏，仅 Unix socket 用例按平台编译。引擎 all-targets 与 runtime lib/tests 编译通过。全量引擎本机曾有 1785 通过、16 失败、14 ignored，剩余失败都在原 HEAD 基线复现；Actions Linux 引擎 1830 通过、0 失败、14 ignored，Clippy 通过。

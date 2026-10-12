@@ -3798,10 +3798,10 @@ fn smart_punctuation_first_run_follows_the_source_on_desktop_ports() {
     assert_eq!(loaded.smart_punctuation_repeat, !expected);
 }
 
-// The source ships muting, DDC and text polishing on; `config.default.toml` says so for Windows, and macOS follows the desktop product it ports. Each is a plain voice switch, so no platform reason keeps them off there. The other hosts keep what they have shipped, and a stored value is never reinterpreted.
+// Windows、macOS 与 Android 改版的语音默认开启静音、DDC 和润色；Android 快速上屏另在宿主跳过润色。已存值不重解释。
 #[test]
 fn voice_first_run_follows_the_source_on_desktop_ports() {
-    let expected = cfg!(any(windows, target_os = "macos"));
+    let expected = cfg!(any(windows, target_os = "macos", target_os = "android"));
     let voice = Preferences::default().voice_input;
     assert_eq!(voice.mute_system_audio, expected);
     assert_eq!(voice.doubao_enable_ddc, expected);
@@ -3836,7 +3836,7 @@ fn voice_first_run_follows_the_source_on_desktop_ports() {
     assert_eq!(loaded.polish_text, !expected);
 }
 
-// The source template ships voice polishing through DeepSeek (`deepseek-v4-flash`) and the AI assistant on against the same endpoint and model; the Windows installer template says the same, and macOS follows the desktop product it ports. The other hosts keep SiliconFlow/Qwen and the assistant off, and a stored value is never reinterpreted.
+// 改版 Android 的润色预设同桌面用 DeepSeek，AI 助手仍默认关闭；已存服务、密钥和开关保持原值。
 #[test]
 fn polish_and_ai_first_run_follow_the_source_on_desktop_ports() {
     let desktop = cfg!(any(windows, target_os = "macos"));
@@ -3844,16 +3844,13 @@ fn polish_and_ai_first_run_follow_the_source_on_desktop_ports() {
     defaults.validate().expect("default preferences validate");
     let voice = &defaults.voice_input;
     let ai = &defaults.ai_assistant;
-    if desktop {
+    if cfg!(any(windows, target_os = "macos", target_os = "android")) {
         assert_eq!(voice.polish_provider, "deepseek");
         assert_eq!(
             voice.polish_endpoint,
             "https://api.deepseek.com/chat/completions"
         );
         assert_eq!(voice.polish_model, "deepseek-v4-flash");
-        assert!(ai.enabled);
-        assert_eq!(ai.endpoint, "https://api.deepseek.com/chat/completions");
-        assert_eq!(ai.model, "deepseek-v4-flash");
     } else {
         assert_eq!(voice.polish_provider, "siliconflow");
         assert_eq!(
@@ -3861,6 +3858,12 @@ fn polish_and_ai_first_run_follow_the_source_on_desktop_ports() {
             "https://api.siliconflow.cn/v1/chat/completions"
         );
         assert_eq!(voice.polish_model, "Qwen/Qwen3-8B");
+    }
+    if desktop {
+        assert!(ai.enabled);
+        assert_eq!(ai.endpoint, "https://api.deepseek.com/chat/completions");
+        assert_eq!(ai.model, "deepseek-v4-flash");
+    } else {
         assert!(!ai.enabled);
         assert!(ai.endpoint.is_empty());
         assert!(ai.model.is_empty());

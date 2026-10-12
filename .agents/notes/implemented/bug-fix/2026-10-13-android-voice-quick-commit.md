@@ -14,6 +14,8 @@ Android 本地 `platform.android.voice_quick_commit` 默认开启，语音页提
 
 语音贡献页面入口及生产调用删除，贡献 API 排除在 Gradle 包外，遥测入口在本机模式关闭。系统识别服务自己的联网行为由系统提供者决定；主动选择第三方识别仍须向该服务发送音频，不能把“无训练上传”写成“完全离线”。
 
+改版已有的共享语音默认值在 Android 包含静音、DDC、润色与 DeepSeek 预设，AI 助手仍默认关闭。默认配置契约和设备 client-core 回归分别检查这些平台差异、旧文档补默认与已有值保留；不能沿用只允许 Windows/macOS 的上游断言，也不能为了通过把设备测试跳过。宿主快速上屏继续覆盖默认等待润色，不改变保存过的服务配置。
+
 历史审计：[系统语音留在键区](2026-10-08-android-platform-voice-in-keyboard.md)部分重叠，保留麦克风与错误处理边界；本篇替代默认等待润色的行为。[识别服务设置](../feature/2026-10-12-android-voice-provider-settings.md)部分重叠，沿用凭据存储及服务选择。
 
 ## Alternatives considered
@@ -23,3 +25,5 @@ Android 本地 `platform.android.voice_quick_commit` 默认开启，语音页提
 ## Consequences
 
 默认语音不受联网润色等待影响，保留明确选择等待润色的入口。系统从 partial 到 final 的耗时仍由系统服务决定，不能保证真实识别端到端在一秒内。设备测试使用合成 RecognitionService 检查 final 到真实输入框、只插一次及语言接线，不代表真实设备 ASR 准确率。
+
+本机 API 28/35 均通过 long sentence、LocalExperience 和 VoiceCommit 三组设备验收；同证书覆盖安装后核对 APK 与最新原生库的 strip 流水线摘要。

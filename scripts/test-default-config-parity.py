@@ -272,9 +272,9 @@ source_voice_default = re.search(
     re.DOTALL,
 )
 assert source_voice_default, "source_voice_default was not found"
-assert source_voice_default.group(1) == 'cfg!(any(windows, target_os = "macos"))', (
+assert source_voice_default.group(1) == 'cfg!(any(windows, target_os = "macos", target_os = "android"))', (
     "the shared first-run default for the source-on voice switches must be on for Windows and "
-    f"macOS and unchanged elsewhere, not: {source_voice_default.group(1)}"
+    f"macOS and the Android fork, not: {source_voice_default.group(1)}"
 )
 source_voice_switches = ("mute_system_audio", "doubao_enable_ddc", "polish_text")
 for field in source_voice_switches:
@@ -287,7 +287,7 @@ for field in source_voice_switches:
     assert f"{field}: source_voice_default()," in core_source, (
         f"VoiceInputPreferences::default() must take {field} from source_voice_default"
     )
-print(f"Windows and macOS ship {len(source_voice_switches)} voice switches on, as the source does")
+print(f"Windows, macOS and Android fork ship {len(source_voice_switches)} voice switches on")
 
 # The polish service and the AI assistant ship pointed at DeepSeek in the source and in the Windows template, with the assistant on. As with the voice switches the running host reads the shared document, so the shared first-run default has to carry the same values on Windows and macOS; the other hosts keep SiliconFlow/Qwen and the assistant off.
 source_service = {
