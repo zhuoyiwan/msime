@@ -75,6 +75,7 @@ CONFIG
     # sudo 的钥匙串会话与 runner 不同，不能从 root 会话打开用户临时钥匙串。
     sudo -n security add-trusted-cert -d -r trustRoot -p codeSign \
       -k /Library/Keychains/System.keychain "$work/certificate.pem"
+    echo "CI：证书信任设置完成。"
   else
     security add-trusted-cert -r trustRoot -p codeSign -k "$keychain" "$work/certificate.pem"
   fi
@@ -96,6 +97,7 @@ xattr -dr com.apple.quarantine "$staged" 2>/dev/null || true
 # 输入法放在 Resources 而非系统约定的嵌套代码目录，不能依赖外层 --deep 自动重签它。
 input_method="$staged/Contents/Resources/水杉输入法.app"
 test -d "$input_method"
+echo "正在签名输入法组件。"
 codesign --force --deep --options runtime --entitlements "$work/local.entitlements" \
   --keychain "$keychain" --sign "$identity" "$input_method"
 codesign --force --options runtime --entitlements "$work/local.entitlements" \
