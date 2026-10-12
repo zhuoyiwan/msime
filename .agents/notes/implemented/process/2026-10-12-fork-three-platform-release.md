@@ -30,4 +30,6 @@ CI 用专用临时钥匙串、明确的 verify-only 模式和管理员信任设�
 
 ## Consequences
 
+三端来源决定由[全量 Actions 构建](2026-10-13-fork-cloud-three-platform-release.md)接续，本篇保留旧包汇集与 Mac 本机签名的历史边界。
+
 用户本机的钥匙串访问/信任操作可能要求系统确认；首次注册需要重新登录。自签名方案未经真实 Mac 安装验收时必须明确说明。Mac 没有移植 Android/Windows 局域网剪贴板与前缀补全，不应宣传三端功能完全相同。

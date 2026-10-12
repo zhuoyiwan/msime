@@ -51,7 +51,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if NGRAM_TABLES.iter().any(|table| name == *table) {
             continue;
         }
+        #[cfg(unix)]
         std::os::unix::fs::symlink(entry.path(), unweighted.path().join(name))?;
+        #[cfg(not(unix))]
+        if entry.file_type()?.is_file() {
+            std::fs::copy(entry.path(), unweighted.path().join(name))?;
+        }
     }
 
     let weighted_order = candidates(&resources, "64426")?;

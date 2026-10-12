@@ -23,15 +23,26 @@ fn resource_view(
     let view = tempfile::tempdir()?;
     for entry in std::fs::read_dir(resources)? {
         let entry = entry?;
+        // Windows 的开发环境不一定有创建符号链接的权限；只复制本次资源视图。
+        #[cfg(unix)]
         std::os::unix::fs::symlink(entry.path(), view.path().join(entry.file_name()))?;
+        #[cfg(not(unix))]
+        if entry.file_type()?.is_file() {
+            std::fs::copy(entry.path(), view.path().join(entry.file_name()))?;
+        }
     }
-    if !resources.join("helpcodes").is_dir() {
+    if !view.path().join("helpcodes").is_dir() {
         // Copied rather than linked: the Engine stages its resources into the user directory and
         // does not follow a linked directory through that step, so a link here reads as no tables
         // at all - which looks exactly like the feature not working.
         let target = view.path().join("helpcodes");
         std::fs::create_dir(&target)?;
-        for entry in std::fs::read_dir(helpcodes)? {
+        let source = if resources.join("helpcodes").is_dir() {
+            resources.join("helpcodes")
+        } else {
+            helpcodes.to_owned()
+        };
+        for entry in std::fs::read_dir(source)? {
             let entry = entry?;
             std::fs::copy(entry.path(), target.join(entry.file_name()))?;
         }

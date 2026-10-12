@@ -4,6 +4,7 @@
 
 use super::runtime::empty_result;
 use super::*;
+use serde_json::json;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -877,6 +878,7 @@ fn dangling_segment_delimiter_cleanup_matches_windows_policy() {
 }
 
 #[test]
+#[cfg(unix)]
 fn voice_control_rejects_zero_generation_without_connecting() {
     let directory = private_tempdir();
     let socket = directory.path().join("voice-control.sock");

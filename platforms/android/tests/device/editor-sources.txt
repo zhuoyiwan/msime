@@ -5,6 +5,11 @@ platforms/android/tests/device/core/EditorActivity.java
 platforms/android/tests/device/core/WallpaperSetterActivity.java
 platforms/android/tests/device/keyboard/EmojiWallpaperDeviceSmoke.java
 platforms/android/tests/device/settings/IndependentThemeDeviceSmoke.java
+platforms/android/tests/device/settings/LocalExperienceDeviceSmoke.java
+platforms/android/tests/device/voice/FixtureRecognitionService.java
+platforms/android/tests/device/voice/FixtureLegacyRecognitionService.java
+platforms/android/tests/device/voice/VoiceCommitDeviceSmoke.java
+platforms/android/tests/device/keyboard/PinyinSentenceDeviceSmoke.java
 platforms/android/tests/device/keyboard/CompactPrefixDeviceSmoke.java
 platforms/android/tests/device/core/DeviceSmoke.java
 platforms/android/tests/device/core/ImageClipProvider.java

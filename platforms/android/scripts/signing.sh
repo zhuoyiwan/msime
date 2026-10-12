@@ -9,7 +9,8 @@ if [[ -n "${MSIME_ANDROID_RELEASE_KEYSTORE:-}" || -f "$android_release_keystore"
   fi
   [[ -n "${MSIME_ANDROID_RELEASE_KEYSTORE_PASSWORD:-}" ]] || { echo "$android_release_keystore needs its password in MSIME_ANDROID_RELEASE_KEYSTORE_PASSWORD or in the login keychain as msime-android-release-keystore (an SSH session cannot read the keychain); refusing to sign with a different key" >&2; exit 1; }
   export MSIME_ANDROID_RELEASE_KEYSTORE_PASSWORD
-  android_signing=(--ks "$android_release_keystore" --ks-key-alias msime-release
+  # 改版沿用自己的正式证书别名；未指定时保留原发布证书的选择。
+  android_signing=(--ks "$android_release_keystore" --ks-key-alias "${MSIME_ANDROID_RELEASE_KEYSTORE_ALIAS:-msime-release}"
     --ks-pass env:MSIME_ANDROID_RELEASE_KEYSTORE_PASSWORD --key-pass env:MSIME_ANDROID_RELEASE_KEYSTORE_PASSWORD)
   android_signed_with="release key"
 else
