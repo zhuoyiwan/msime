@@ -25,6 +25,12 @@ public final class DimensionPolicy {
             & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
     }
 
+    /** 设备实际的深浅模式；不受设置 activity 的 AppCompat 强制模式影响。 */
+    public static boolean isSystemNight() {
+        return (android.content.res.Resources.getSystem().getConfiguration().uiMode
+            & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+    }
+
     /** Read the display density used by Android layout calculations. */
     public static float density(Context context) {
         return context.getResources().getDisplayMetrics().density;

@@ -48,6 +48,13 @@ public final class AndroidLocalSettingsSmoke {
     private static void defaults() {
         AndroidLocalSettings.Snapshot settings = AndroidLocalSettings.defaults();
         check("siji".equals(settings.choice(AndroidLocalSettings.APP_THEME)), "app theme default");
+        check("system".equals(settings.choice(AndroidLocalSettings.APP_COLOR_MODE)), "app mode follows device");
+        check(!AndroidLocalSettings.spec(AndroidLocalSettings.APP_COLOR_MODE).synced, "app mode stays on this device");
+        check("dark".equals(AndroidLocalSettings.spec(AndroidLocalSettings.APP_COLOR_MODE).accept("dark")), "dark mode accepted");
+        check(AndroidLocalSettings.spec(AndroidLocalSettings.APP_COLOR_MODE).accept("follow") == null, "app mode does not inherit keyboard");
+        check("legacy".equals(settings.choice(AndroidLocalSettings.KEYBOARD_COLOR_MODE)), "existing keyboard modes are preserved");
+        check("system".equals(AndroidLocalSettings.spec(AndroidLocalSettings.KEYBOARD_COLOR_MODE).accept("system")), "keyboard can independently follow device");
+        check(!AndroidLocalSettings.spec(AndroidLocalSettings.KEYBOARD_COLOR_MODE).synced, "keyboard mode stays on device");
         check("off".equals(settings.choice(AndroidLocalSettings.ONE_HANDED)), "one-handed default");
         check(!settings.bool(AndroidLocalSettings.SPLIT_KEYBOARD), "split keyboard is off by default");
         check(settings.bool(AndroidLocalSettings.KEY_POPUP), "key popup default");

@@ -17,7 +17,7 @@ import java.util.List;
 import org.json.JSONObject;
 
 /**
- * 「我的 → 应用主题」的选择面板：顶部是颜色模式分段（跟随系统 / 浅色 / 深色，共享偏好 `theme`），下面是水杉四季（自动）与四个固定季节（Android 本地设置的 `general.app_theme`，见 {@link AndroidLocalSettings#APP_THEME}）。
+ * 「我的 → 应用主题」的选择面板：顶部是软件独立颜色模式分段（跟随系统 / 浅色 / 深色），下面是壁纸配色和水杉四季。
  *
  * <p>外观与 {@link OptionSheet} 一致（M3 modal bottom sheet、居中小标题、56dp 强调色选项、当前项加粗打 ✓、末尾「取消」），只是多了顶部那一行分段，所以自己搭而不是往 OptionSheet 里塞。季节规则在 Rust：写入应用主题后交给 {@link AppThemeController#follow} 重新解析并更新缓存，缓存的季节变了才 `recreate()`；颜色模式写入后交给 {@link AppMode#follow}，由 AppCompat 重建打开着的页面。
  */
@@ -36,9 +36,11 @@ final class AppThemeSheet {
     /** 当前应用主题在「我的」行尾的写法：四季时带上这一季，例如「四季 · 秋杉」。 */
     static String summary(Context context, @Nullable JSONObject preferences) {
         String theme = theme(context);
-        if (!"siji".equals(theme)) return label(theme);
-        String season = seasonName(AppThemeController.cachedSeason(context));
-        return "四季 · " + season;
+        String color = !"siji".equals(theme) ? label(theme)
+            : "四季 · " + seasonName(AppThemeController.cachedSeason(context));
+        String mode = AppMode.of(context);
+        String modeLabel = AppMode.LIGHT.equals(mode) ? "浅色" : AppMode.DARK.equals(mode) ? "深色" : "跟随系统";
+        return modeLabel + " · " + color;
     }
 
     /**
@@ -53,10 +55,10 @@ final class AppThemeSheet {
         LinearLayout root = LayoutPolicy.column(context);
         root.addView(LayoutPolicy.sheetDragHandle(context));
 
-        LinearLayout header = SheetHeaderView.create(context, "应用主题", "壁纸取色随设备配色变化；四季随季节变化");
+        LinearLayout header = SheetHeaderView.create(context, "应用主题", "仅更改软件界面；键盘深浅模式在「键盘」中单独设置");
 
-        // 颜色模式：键盘和本应用的浅色 / 深色，与应用主题的季节无关。
-        String mode = preferences == null ? AppMode.SYSTEM : AppMode.of(preferences);
+        // 软件深浅模式与键盘、季节配色各自独立。
+        String mode = AppMode.of(context);
         SegmentedControl modes = new SegmentedControl(context);
         modes.setContentDescription("颜色模式");
         int selectedMode = 0;
@@ -64,7 +66,7 @@ final class AppThemeSheet {
         modes.setOptions(List.of(MODES[0][1], MODES[1][1], MODES[2][1]), selectedMode);
         modes.setOnSelect(index -> {
             dialog.dismiss();
-            save(host, "theme", MODES[index][0], refresh);
+            save(host, MODES[index][0], refresh);
         });
         LinearLayout.LayoutParams modeParams = LayoutPolicy.wrapParams();
         modeParams.topMargin = DimensionPolicy.pixels(context, 12);
@@ -89,19 +91,21 @@ final class AppThemeSheet {
         dialog.show();
     }
 
-    /** 写共享偏好里的颜色模式 `theme`，交给 AppMode 重建打开着的页面。 */
-    private static void save(Fragment host, String key, String value, Runnable refresh) {
+    /** 写软件独立颜色模式，交给 AppMode 重建打开着的页面。 */
+    private static void save(Fragment host, String value, Runnable refresh) {
         HostTask.run(host, context -> {
-            JSONObject saved = HostStore.putPreference(context, key, value);
-            if (saved == null) return null;
-            return new Object[] {saved.optJSONObject("preferences")};
+            try {
+                AndroidLocalSettings.put(context, AndroidLocalSettings.APP_COLOR_MODE, value);
+                return Boolean.TRUE;
+            } catch (java.io.IOException | IllegalArgumentException error) {
+                return null;
+            }
         }, result -> {
             if (result == null) {
                 MsToast.show(host.requireContext(), "没有保存，请重试");
                 return;
             }
-            JSONObject preferences = result[0] instanceof JSONObject saved ? saved : null;
-            AppMode.follow(host.requireContext(), preferences);
+            AppMode.follow(host.requireContext(), null);
             refresh.run();
         });
     }

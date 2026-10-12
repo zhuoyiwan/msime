@@ -1,20 +1,18 @@
 package app.msime.android.home;
 
 import app.msime.android.DimensionPolicy;
+import app.msime.android.AndroidLocalSettings;
 
 import android.content.Context;
 import android.content.SharedPreferences;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatDelegate;
-import app.msime.android.KeyboardGeometry;
 import app.msime.android.R;
-import app.msime.android.core.InputViewValuePolicy;
 import org.json.JSONObject;
 
 /**
- * The host's light or dark mode, taken from the shared `theme` preference (`system`, `light` or `dark`).
- *
- * <p>The keyboard already draws in this mode; without it the settings pages followed only the system, so choosing 深色 turned the keyboard dark and left the app that chose it light. The preference lives in the shared store, which may not be read on the main thread, so the last mode applied is kept in this app's own preferences and restored before the first activity draws; the store is then read as the pages load and any change is applied from there.
+ * 软件界面的独立深浅模式，读取本地 APP_COLOR_MODE；键盘单独解析本机模式与共享偏好。
+ * 季节和壁纸配色保持原有缓存与叠加方式。
  */
 final class AppMode {
     static final String SYSTEM = "system";
@@ -22,7 +20,6 @@ final class AppMode {
     static final String DARK = "dark";
 
     private static final String STORE = "msime_home_v1";
-    private static final String KEY = "app_mode";
     /** 应用主题最近一次解析到的季节（`spring`、`summer`、`autumn`、`winter`），由应用主题控制器在读到共享偏好后写入；没有时用基础主题的秋杉。 */
     static final String SEASON_KEY = "app_theme_season";
 
@@ -31,7 +28,7 @@ final class AppMode {
     /** 恢复上次应用的深浅模式，并给这个 activity 的主题叠上缓存季节的配色。每个宿主 activity 都在 `super.onCreate` 之前调用它，所以进程被恢复到任何一个页面时，第一帧就是对的模式和季节。 */
     static void restore(Context context) {
         SharedPreferences store = context.getSharedPreferences(STORE, Context.MODE_PRIVATE);
-        apply(store.getString(KEY, SYSTEM));
+        apply(of(context));
         int overlay = seasonOverlay(store.getString(SEASON_KEY, null));
         // 基础主题本身就是秋杉，没有缓存时不必再叠一层。
         if (overlay != 0) context.getTheme().applyStyle(overlay, true);
@@ -52,21 +49,18 @@ final class AppMode {
         }
     }
 
-    /** Follow the `theme` value in a freshly read preferences object; a change recreates the open activities in the new mode. */
+    /** 读取软件独立模式；参数保留给已有加载流程，不再从键盘偏好取色。 */
     static void follow(Context context, @Nullable JSONObject preferences) {
-        if (preferences == null) return;
-        String mode = of(preferences);
-        context.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit().putString(KEY, mode).apply();
+        String mode = of(context);
         apply(mode);
     }
 
-    /** The stored mode, with anything unrecognised read as `system`, the way the keyboard reads it. */
-    static String of(JSONObject preferences) {
-        String mode = InputViewValuePolicy.textOr(preferences, "theme", SYSTEM);
-        return LIGHT.equals(mode) || DARK.equals(mode) ? mode : SYSTEM;
+    /** 软件默认独立跟随系统，未知值由本地设置层恢复默认。 */
+    static String of(Context context) {
+        return AndroidLocalSettings.load(context).choice(AndroidLocalSettings.APP_COLOR_MODE);
     }
 
-    /** Whether this context is drawing dark right now: the system's night mode, or the one `theme` forces. */
+    /** 这个软件界面当前的模式，不用于推断键盘或设备模式。 */
     static boolean dark(Context context) {
         return DimensionPolicy.isNight(context);
     }

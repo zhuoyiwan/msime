@@ -4,6 +4,7 @@ import app.msime.android.ThemeColorPolicy;
 import app.msime.android.LayoutPolicy;
 
 import app.msime.android.DimensionPolicy;
+import app.msime.android.AndroidLocalSettings;
 
 import android.content.Context;
 import android.graphics.Color;
@@ -49,7 +50,7 @@ public final class SkinsPage extends ReloadingDetailPage {
     private record Card(String id, String title, KeyboardSkin skin, @Nullable JSONObject design, boolean selected,
             boolean community, String author) {}
 
-    private record Model(List<Card> themes, List<Card> designs, List<Card> community) {}
+    private record Model(List<Card> themes, List<Card> designs, List<Card> community, String colorMode) {}
 
     /** 这一页对社区目录缓存做过什么：还没看过、正在重拉、看过了（新鲜或已重拉）、重拉失败。 */
     private enum Catalogue { UNCHECKED, LOADING, READY, FAILED }
@@ -57,7 +58,7 @@ public final class SkinsPage extends ReloadingDetailPage {
     private Catalogue catalogue = Catalogue.UNCHECKED;
 
     @Override protected void reload() {
-        boolean dark = AppMode.dark(requireContext());
+        boolean dark = DimensionPolicy.isSystemNight();
         String season = KeyboardSheets.seasonTitle(AppThemeController.cachedSeason(requireContext()));
         HostTask.run(this, context -> read(context, dark, season), this::render);
     }
@@ -66,9 +67,10 @@ public final class SkinsPage extends ReloadingDetailPage {
         JSONObject preferences = KeyboardSheets.preferences(context);
         if (preferences == null) return null;
         JSONArray catalog = HostStore.themeCatalog();
+        String mode = AndroidLocalSettings.keyboardColorMode(preferences, AndroidLocalSettings.load(context));
         // 键盘的明暗，与 HostStore.keyboardSkin 的算法相同。只列这一明暗下的主题；所选主题属于另一种明暗时键盘按跟随系统画，选中态也落在跟随系统上。
         boolean keyboardDark = KeyboardSkin.resolveDark(
-            InputViewValuePolicy.textOr(preferences, "screen_keyboard_theme", "follow"),
+            mode,
             InputViewValuePolicy.textOr(preferences, "theme", "system"), systemDark);
         String current = KeyboardSkin.effectiveTheme(catalog,
             InputViewValuePolicy.textOr(preferences, "global_theme", "system"), keyboardDark);
@@ -84,7 +86,7 @@ public final class SkinsPage extends ReloadingDetailPage {
                 String title = InputViewValuePolicy.textOr(entry, "title", id);
                 if (entry.optBoolean("seasonal", false)) title = title + " · " + season;
                 JSONObject probe = new JSONObject(preferences.toString()).put("global_theme", id);
-                KeyboardSkin skin = HostStore.keyboardSkin(probe, systemDark, HostStore.seed(context));
+                KeyboardSkin skin = HostStore.keyboardSkin(probe, systemDark, HostStore.seed(context), mode);
                 themes.add(new Card(id, title, skin, null, id.equals(current), false, ""));
             }
         } catch (JSONException error) {
@@ -103,7 +105,7 @@ public final class SkinsPage extends ReloadingDetailPage {
                 for (CustomSkinLibrary.Item item : storedDesigns) {
                     boolean selected = !storedKey.isEmpty()
                         && storedKey.equals(CustomKeyboardSkin.from(item.design()).key());
-                    designs.add(new Card(item.id(), item.name(), KeyboardSkin.custom(item.design(), systemDark),
+                    designs.add(new Card(item.id(), item.name(), KeyboardSkin.custom(item.design(), keyboardDark),
                         item.design(), selected, false, ""));
                 }
             } catch (java.io.IOException error) {
@@ -111,7 +113,8 @@ public final class SkinsPage extends ReloadingDetailPage {
                 android.util.Log.w("MSIMESettings", "Custom skin library unreadable", error);
             }
         }
-        return new Model(themes, designs, List.of());
+        String selectedMode = "follow".equals(mode) ? InputViewValuePolicy.textOr(preferences, "theme", "system") : mode;
+        return new Model(themes, designs, List.of(), selectedMode);
     }
 
     /** 社区目录缓存里还没存进皮肤库的前几款；与皮肤库里某个设计画出来一样的也不列，和键盘皮肤面板的去重相同。 */
@@ -145,6 +148,9 @@ public final class SkinsPage extends ReloadingDetailPage {
             return;
         }
         Context context = requireContext();
+        GroupCard.add(target, "键盘外观").nav("键盘皮肤深浅模式", "单独控制键盘，不影响软件界面和其他面板",
+            "dark".equals(model.colorMode()) ? "深色" : "light".equals(model.colorMode()) ? "浅色" : "跟随系统",
+            () -> pickColorMode(model.colorMode()));
         List<View> themeCards = new ArrayList<>(model.themes().size() + 1);
         for (Card card : model.themes()) themeCards.add(card(context, card));
         grid(target, "皮肤", themeCards);
@@ -153,6 +159,14 @@ public final class SkinsPage extends ReloadingDetailPage {
             for (Card card : model.designs()) designCards.add(card(context, card));
             grid(target, "我的设计", designCards);
         }
+    }
+
+    private void pickColorMode(String current) {
+        OptionSheet sheet = new OptionSheet(requireContext(), "键盘皮肤深浅模式", "皮肤按所选模式预览和显示");
+        for (String[] mode : new String[][] {{"system", "跟随系统"}, {"light", "浅色"}, {"dark", "深色"}})
+            sheet.option(mode[1], mode[0].equals(current), () -> KeyboardSheets.saveLocal(this,
+                AndroidLocalSettings.KEYBOARD_COLOR_MODE, mode[0], this::reload, this::reload));
+        sheet.show();
     }
 
     /** 「社区皮肤」：缓存里的前几款，末尾一行进完整列表。缓存是空的时候说明为什么空。 */

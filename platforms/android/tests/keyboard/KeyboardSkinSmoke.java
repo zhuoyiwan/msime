@@ -83,6 +83,8 @@ public final class KeyboardSkinSmoke {
 
         check(KeyboardSkin.resolveDark("dark", "light", false));
         check(!KeyboardSkin.resolveDark("light", "dark", true));
+        check(!KeyboardSkin.resolveDark("system", "dark", false));
+        check(KeyboardSkin.resolveDark("system", "light", true));
         check(KeyboardSkin.resolveDark("follow", "dark", false));
         check(!KeyboardSkin.resolveDark("follow", "light", true));
         check(KeyboardSkin.resolveDark("follow", "system", true));

@@ -221,9 +221,9 @@ public final class KeyboardFragment extends HomeTabFragment {
         String scheme = pending;
         String skin = pending;
         if (preferences != null) {
-            // The page's own night mode stands in for the system's, as the keyboard's does: with `theme` on 跟随系统 the host follows the system, and with it forced the resolver never asks.
-            KeyboardSkin resolved = HostStore.keyboardSkin(preferences, AppMode.dark(requireContext()),
-                HostStore.seed(requireContext()));
+            // 软件可以强制深浅色；键盘预览读取设备实际模式，再应用键盘自己的覆盖。
+            KeyboardSkin resolved = HostStore.keyboardSkin(preferences, DimensionPolicy.isSystemNight(),
+                HostStore.seed(requireContext()), AndroidLocalSettings.keyboardColorMode(preferences, local));
             AppEdition edition = AppEdition.current();
             KeyboardScheme selected = SchemePreferences.storedScheme(preferences, edition);
             skin = resolved.title();

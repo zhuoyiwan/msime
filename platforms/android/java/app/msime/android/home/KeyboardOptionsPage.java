@@ -74,12 +74,13 @@ public final class KeyboardOptionsPage extends DetailPage {
     }
 
     private void reload() {
-        boolean dark = AppMode.dark(requireContext());
+        boolean dark = DimensionPolicy.isSystemNight();
         HostTask.run(this, context -> {
             JSONObject preferences = KeyboardSheets.preferences(context);
             if (preferences == null) return null;
-            return new State(preferences, AndroidLocalSettings.load(context), KeyboardFeedbackStore.load(context),
-                HostStore.keyboardSkin(preferences, dark, HostStore.seed(context)));
+            AndroidLocalSettings.Snapshot local = AndroidLocalSettings.load(context);
+            return new State(preferences, local, KeyboardFeedbackStore.load(context),
+                HostStore.keyboardSkin(preferences, dark, HostStore.seed(context), AndroidLocalSettings.keyboardColorMode(preferences, local)));
         }, this::render);
     }
 
@@ -96,6 +97,13 @@ public final class KeyboardOptionsPage extends DetailPage {
         AppEdition edition = AppEdition.current();
         KeyboardScheme current = SchemePreferences.storedScheme(preferences, edition);
 
+        String keyboardMode = InputViewValuePolicy.textOr(preferences, "theme", "system");
+        String surfaceMode = AndroidLocalSettings.keyboardColorMode(preferences, settings);
+        String effectiveMode = "follow".equals(surfaceMode) ? keyboardMode : surfaceMode;
+        GroupCard appearance = GroupCard.add(target, "外观");
+        appearance.nav("键盘深浅模式", "仅更改输入法；软件界面在「我的 → 应用主题」中单独设置",
+            "dark".equals(effectiveMode) ? "深色" : "light".equals(effectiveMode) ? "浅色" : "跟随系统",
+            () -> pickColorMode(effectiveMode));
         GroupCard layout = GroupCard.add(target, "布局");
         KeyboardScheme[] pair = layoutPair(current);
         boolean pairOffered = pair != null;
@@ -347,6 +355,14 @@ public final class KeyboardOptionsPage extends DetailPage {
         dialog.setPrimary("保存", values -> KeyboardSheets.saveLocal(this, key,
             values.get(0).isEmpty() ? null : NineKeySidebarPolicy.normalize(values.get(0)), this::reload, this::reload));
         dialog.show();
+    }
+
+    private void pickColorMode(String current) {
+        OptionSheet sheet = new OptionSheet(requireContext(), "键盘深浅模式", "软件界面的深浅模式保持独立");
+        String[][] modes = {{"system", "跟随系统"}, {"light", "浅色"}, {"dark", "深色"}};
+        for (String[] mode : modes)
+            sheet.option(mode[1], mode[0].equals(current), () -> saveLocal(AndroidLocalSettings.KEYBOARD_COLOR_MODE, mode[0]));
+        sheet.show();
     }
 
     private void pickNumberArrangement(AndroidLocalSettings.Snapshot settings) {

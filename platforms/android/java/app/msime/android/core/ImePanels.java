@@ -391,7 +391,7 @@ final class ImePanels {
         JSONObject preferences = s.preferencesSnapshot == null ? null
             : s.preferencesSnapshot.optJSONObject("preferences");
         boolean hostDark = KeyboardSkin.resolveDark(
-            InputViewValuePolicy.textOr(preferences, "screen_keyboard_theme", "follow"),
+            AndroidLocalSettings.keyboardColorMode(preferences, s.localSettings),
             InputViewValuePolicy.textOr(preferences, "theme", "system"), s.systemDark());
         JSONArray themes = s.themeCatalog();
         int generation = ++skinRenderGeneration;

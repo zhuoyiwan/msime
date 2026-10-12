@@ -38,6 +38,10 @@ public final class AndroidLocalSettings {
     public static final String APP_THEME = "general.app_theme";
     /** 随本机壁纸配色，不参加跨设备设置同步。 */
     public static final String WALLPAPER_COLORS = "platform.android.wallpaper_colors";
+    /** 软件界面的深浅模式，与键盘共享偏好 theme 分开，仅在本机保存。 */
+    public static final String APP_COLOR_MODE = "platform.android.app_color_mode";
+    /** 键盘皮肤的独立模式；legacy 保留旧共享偏好的覆盖规则。 */
+    public static final String KEYBOARD_COLOR_MODE = "platform.android.keyboard_color_mode";
     /** 改版表情候选的一次性迁移标记，跨宿主与输入法进程共享。 */
     public static final String EMOJI_MIGRATED = "platform.android.fork_emoji_migrated";
     public static final String ONE_HANDED = "platform.android.one_handed";
@@ -173,6 +177,8 @@ public final class AndroidLocalSettings {
 
     static {
         choice(APP_THEME, "siji", true, "siji", "chunya", "xiayin", "qiushan", "dongxue");
+        choice(APP_COLOR_MODE, "system", false, "system", "light", "dark");
+        choice(KEYBOARD_COLOR_MODE, "legacy", false, "legacy", "system", "light", "dark");
         bool(WALLPAPER_COLORS, false, false);
         bool(EMOJI_MIGRATED, false, false);
         choice(ONE_HANDED, "off", true, "off", "left", "right");
@@ -336,6 +342,13 @@ public final class AndroidLocalSettings {
 
     public static Path file(Context context) {
         return context.getFilesDir().toPath().resolve("bootstrap").resolve("state").resolve(FILE_NAME);
+    }
+
+    /** 本机独立键盘模式优先；未设置时沿用旧共享偏好，不改变其他面板。 */
+    public static String keyboardColorMode(JSONObject preferences, Snapshot local) {
+        String mode = local.choice(KEYBOARD_COLOR_MODE);
+        if (!"legacy".equals(mode)) return mode;
+        return preferences != null && preferences.opt("screen_keyboard_theme") instanceof String value ? value : "follow";
     }
 
     public static Snapshot load(Context context) { return load(file(context)); }

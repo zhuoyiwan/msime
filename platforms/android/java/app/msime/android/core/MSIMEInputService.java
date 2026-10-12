@@ -4575,6 +4575,7 @@ public final class MSIMEInputService extends InputMethodService {
      */
     private KeyboardSkin surfaceSkin(JSONObject preferences, String key) {
         String surfaceMode = preferences == null ? "follow" : preferences.optString(key, "follow");
+        if ("screen_keyboard_theme".equals(key)) surfaceMode = AndroidLocalSettings.keyboardColorMode(preferences, localSettings);
         String appMode = preferences == null ? "system"
             : InputViewValuePolicy.textOr(preferences, "theme", "system");
         boolean dark = KeyboardSkin.resolveDark(surfaceMode, appMode, systemDark());

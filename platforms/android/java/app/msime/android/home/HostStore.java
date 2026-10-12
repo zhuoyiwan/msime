@@ -178,6 +178,18 @@ public final class HostStore {
         return KeyboardSkin.system(dark, seed);
     }
 
+    /** 预览使用本机独立键盘模式；临时 JSON 仅传给解析器，不写回共享偏好。 */
+    public static KeyboardSkin keyboardSkin(JSONObject preferences, boolean systemDark,
+            AppThemePalette.Seed seed, String mode) {
+        try {
+            JSONObject preview = new JSONObject(preferences.toString()).put("screen_keyboard_theme", mode);
+            return keyboardSkin(preview, systemDark, seed);
+        } catch (org.json.JSONException error) {
+            return KeyboardSkin.system(KeyboardSkin.resolveDark(mode,
+                InputViewValuePolicy.textOr(preferences, "theme", "system"), systemDark), seed);
+        }
+    }
+
     /**
      * The app theme's seed colours the host last resolved for today's season, or 秋杉 (the base theme) before the first resolution. Reads only this app's own SharedPreferences, so it may run on the main thread.
      */

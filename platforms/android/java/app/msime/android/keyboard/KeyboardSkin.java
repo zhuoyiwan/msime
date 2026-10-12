@@ -148,11 +148,13 @@ public final class KeyboardSkin {
     }
 
     /**
-     * Whether one surface draws dark. `surfaceMode` is that surface's own `*_theme` preference and wins when it is `dark` or `light`; anything else follows `appMode` (the `theme` preference), and a `system` app mode follows the Android night mode. A theme with a fixed appearance overrides the result after resolution.
+     * 界面自己的 dark/light 优先；system 独立跟随设备，其他值沿用输入法全局模式。
+     * 固定明暗的皮肤仍由解析器决定最终兼容皮肤。
      */
     public static boolean resolveDark(String surfaceMode, String appMode, boolean systemDark) {
         if ("dark".equals(surfaceMode)) return true;
         if ("light".equals(surfaceMode)) return false;
+        if ("system".equals(surfaceMode)) return systemDark;
         if ("dark".equals(appMode)) return true;
         if ("light".equals(appMode)) return false;
         return systemDark;
