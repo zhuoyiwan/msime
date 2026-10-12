@@ -1103,6 +1103,11 @@ fn long_sentence_completes_final_initial_after_middle_typos() {
             .find(|row| row.word == "我想去上课")
             .unwrap_or_else(|| panic!("{raw}: {:?}", words(&rows)));
         assert_eq!(row.canonical_pinyin, "wo'xiang'qu'shang'ke", "{raw}");
+        assert_eq!(
+            row.pinyin.replace('\'', ""),
+            raw,
+            "{raw}: 整句必须消费原始输入"
+        );
     }
 }
 

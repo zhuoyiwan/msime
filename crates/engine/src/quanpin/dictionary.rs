@@ -925,7 +925,11 @@ impl QuanpinDictionary {
         options.personal = Some(&*model);
         options.bigram_memo = Some(&self.bigram_memo);
 
-        let typed = if segmentation.is_empty() {
+        // 未完成尾音节的整句覆盖原串；纠错后的切分可能少一个字母，不能留下原串末尾。
+        let tail_completion = segments
+            .last()
+            .is_some_and(|tail| !crate::pinyin::syllables::is_intact(tail));
+        let typed = if segmentation.is_empty() || tail_completion {
             raw
         } else {
             segmentation
