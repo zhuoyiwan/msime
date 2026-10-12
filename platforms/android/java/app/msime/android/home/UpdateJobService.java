@@ -94,7 +94,7 @@ public final class UpdateJobService extends JobService {
     }
 
     static UpdateApi.Channel channel(Context context) {
-        return UpdateApi.Channel.fromId(store(context).getString(KEY_CHANNEL, UpdateApi.Channel.STABLE.id()));
+        return UpdateApi.Channel.fromId(store(context).getString(KEY_CHANNEL, UpdateApi.Channel.PREVIEW.id()));
     }
 
     static void setChannel(Context context, UpdateApi.Channel channel) {

@@ -125,8 +125,7 @@ public final class AboutPage extends DetailPage {
 
     @Override protected void buildContent(LinearLayout column, Bundle args) {
         Context context = requireContext();
-        // 改版不指向上游自动更新，避免覆盖本地功能与独立签名。
-        boolean play = true;
+        boolean play = UpdateJobService.installedFromPlay(context);
         column.addView(header(context, play));
         GroupCard.add(column, null).note("zhuoyiwan 改版 · 增加 Windows / Android 局域网剪贴板互通");
 
@@ -135,6 +134,7 @@ public final class AboutPage extends DetailPage {
             updates.toggle("自动更新", "每天在联网时检查一次，下载好后通知你安装", UpdateJobService.autoUpdate(context),
                 this::setAutoUpdate);
             channelRow = updates.nav("更新通道", null, UpdateJobService.channel(context).title(), this::chooseChannel);
+            updates.footer("更新来自 zhuoyiwan 的 GitHub Releases；安装前核对摘要与本机签名。改版目前发布在预览通道。");
         }
 
         GroupCard device = GroupCard.add(column, "设备信息").withDividers(Ui.ROW_PADDING_H);

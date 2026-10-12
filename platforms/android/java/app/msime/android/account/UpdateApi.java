@@ -31,11 +31,11 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * 关于页「检查更新」和每天一次的自动更新共用的一层：查 msime.app 的 Android 发行版列表、按更新通道挑出比当前版本新的那一个、把本版本（edition）的 APK 下载到 `cache/updates/`，并在交给系统安装器之前核对 SHA-256 与签名证书。
+ * 关于页「检查更新」和每天一次的自动更新共用的一层：查维护者 GitHub 的发行版列表、按更新通道挑出比当前版本新的改版 ARM64 APK，下载到 `cache/updates/`，并在交给系统安装器之前核对 SHA-256 与签名证书。
  *
- * <p>发行版列表来自 `https://msime.app/api/releases?platform=android`（msime-web 带缓存的 GitHub 发行版镜像，避开 GitHub 对未鉴权请求每小时 60 次的限额），条目只有 `tag`、`version`、`prerelease` 等元数据，没有资产地址。APK 按发布流程的命名（`release-android.yml` 用 `edition_android.py` 的 `apk_name`：full 是 `msime-android.apk`，其他版本是 `msime-android-<id>.apk`）从 GitHub 发布页下载，校验值是同一发布里的 `<apk>.sha256`（`sha256sum` 的格式）。没有校验文件的发布一律不装。
+ * <p>生产查询使用 {@link #FORK_RELEASES_URL}，资产由 {@link ForkUpdatePolicy} 检查维护者路径、平台名称、大小与 GitHub 摘要；不把改版升级回上游。旧列表解析函数仅保留兼容及独立测试。
  *
- * <p>APK 和校验文件都先从国内镜像 {@link #MIRROR_PREFIX} 下载，镜像的任何失败（网络、HTTP 状态、摘要不符）都换回 GitHub 原地址。镜像同时提供 APK 和校验值，所以 SHA-256 只防传输损坏；真正挡住被替换的包的是安装前的 {@link #verifyArchive}：包名相同、版本号更高、签名证书与当前安装的一致，镜像伪造不出来。
+ * <p>改版直接从 GitHub 下载，不使用上游镜像。摘要防传输损坏，安装前 {@link #verifyArchive} 继续要求包名相同、版本号更高、签名证书与当前安装一致。
  *
  * <p>每一跳请求（包括重定向）都只允许 https，且主机必须在 {@link #HOSTS} 里；重定向由这里逐跳检查而不是交给 `HttpURLConnection` 自动跟随。
  *
@@ -43,13 +43,14 @@ import org.json.JSONObject;
  */
 public final class UpdateApi {
     public static final String RELEASES_URL = "https://msime.app/api/releases?platform=android";
+    public static final String FORK_RELEASES_URL = "https://api.github.com/repos/zhuoyiwan/msime-windows/releases?per_page=30";
     /** 发布页下载地址的前缀，后面接 `<tag>/<资产名>`。 */
     public static final String DOWNLOAD_PREFIX = "https://github.com/metasequoiaime/msime/releases/download/";
     /** 国内镜像（Cloudflare R2，见 msime-web README「国内镜像」）：`<前缀><原地址>`，没缓存过的文件由镜像从 GitHub 取一次后留存。国内连 GitHub 发布页常常只有几十 KB/s。 */
     public static final String MIRROR_PREFIX = "https://dl.msime.app/gh/";
     /** 允许连接的主机：msime.app 的发行版列表，国内镜像，GitHub 发布页和它重定向到的两个资产域名。 */
     public static final Set<String> HOSTS = Set.of(
-        "msime.app", "dl.msime.app", "github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com");
+        "api.github.com", "msime.app", "dl.msime.app", "github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com");
     /** 下载到应用缓存下的这个子目录，FileProvider 的 `updates` 路径指向它。 */
     public static final String CACHE_DIRECTORY = "updates";
     static final int MAX_LIST_BYTES = 2 * 1024 * 1024;
@@ -95,7 +96,11 @@ public final class UpdateApi {
     public record Release(String tag, String version, boolean prerelease) {}
 
     /** 一个可以下载的更新：哪个发布、APK 与校验文件的地址、下载后的文件名。 */
-    public record Update(Release release, String apkUrl, String checksumUrl, String fileName) {}
+    public record Update(Release release, String apkUrl, String checksumUrl, String fileName, String sha256) {
+        public Update(Release release, String apkUrl, String checksumUrl, String fileName) {
+            this(release, apkUrl, checksumUrl, fileName, null);
+        }
+    }
 
     /** 检查或安装失败的原因；`message` 是给用户看的中文。 */
     public static final class Failure extends Exception {
@@ -288,9 +293,8 @@ public final class UpdateApi {
 
     /** 查更新：有比当前版本新的发布时返回它，否则返回 null。 */
     public Update check(Channel channel, String edition, String currentVersion) throws Failure {
-        byte[] body = fetch(RELEASES_URL, MAX_LIST_BYTES);
-        Release release = pick(parseReleases(new String(body, StandardCharsets.UTF_8)), channel, currentVersion);
-        return update(release, edition);
+        byte[] body = fetch(FORK_RELEASES_URL, MAX_LIST_BYTES);
+        return ForkUpdatePolicy.pick(new String(body, StandardCharsets.UTF_8), channel, edition, currentVersion);
     }
 
     /** 下载进度：已下载字节与总字节（不知道总长时为 -1）。 */
@@ -304,7 +308,9 @@ public final class UpdateApi {
      * <p>先下到 `.part` 临时文件，核对通过才改名，核对失败的文件不会留下。两次下载同时发生时排队（{@link #DOWNLOAD_LOCK}）；后一次拿到锁时如果前一次已经把同一个版本下好并核对过，直接用它，不再下载一遍。
      */
     public File download(Update update, File cacheDir, Progress progress) throws Failure {
-        String expected = parseChecksum(new String(fetchFromSources(update.checksumUrl(), MAX_CHECKSUM_BYTES), StandardCharsets.UTF_8));
+        String expected = update.sha256() == null
+            ? parseChecksum(new String(fetchFromSources(update.checksumUrl(), MAX_CHECKSUM_BYTES), StandardCharsets.UTF_8))
+            : parseChecksum(update.sha256());
         if (expected == null) throw new Failure("这个版本没有校验信息，请到官网下载");
         synchronized (DOWNLOAD_LOCK) {
             return downloadLocked(update, cacheDir, progress, expected);
@@ -358,6 +364,7 @@ public final class UpdateApi {
 
     /** 依次尝试的下载地址：先国内镜像，再 GitHub 原地址。 */
     static List<String> sources(String url) {
+        if (url.startsWith(ForkUpdatePolicy.DOWNLOAD_PREFIX)) return List.of(url);
         return List.of(MIRROR_PREFIX + url, url);
     }
 
