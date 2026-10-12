@@ -699,6 +699,60 @@ impl QuanpinDictionary {
                 );
             }
         }
+        // 原串无法完整切分时按字母位置联合解码；前缀只作为最后兜底。
+        if (segments.is_empty()
+            || !has_only_complete_pinyin_segments(&segments[..segments.len() - 1]))
+            && segmentation.is_empty()
+            && types != 0
+            && self.sentence_association.word_lattice
+        {
+            let personal = Arc::clone(&self.personal);
+            let model = personal.model();
+            let mut options = make_sentence_lattice_options(&self.paths, true);
+            options.personal = Some(&*model);
+            options.bigram_memo = Some(&self.bigram_memo);
+            let paths = super::robust::decode(&self.database, raw, types, &options);
+            let mut rows: Vec<_> = paths
+                .into_iter()
+                .map(|path| {
+                    let mut row = WordItem::new(
+                        raw,
+                        path.sentence,
+                        (path.log_prob * 1000.0) as i64,
+                        CandidateSource::Generated,
+                        path.key,
+                    );
+                    row.sentence_association = true;
+                    row.sentence_words = path.words;
+                    row.corrected_from = raw.to_owned();
+                    row
+                })
+                .collect();
+            rows.retain(|row| !result.iter().any(|existing| existing.word == row.word));
+            if result.iter().any(|row| row.sentence_association) {
+                rows.truncate(2);
+            }
+            let full_sentence = result.iter().any(|row| {
+                row.sentence_association
+                    && row
+                        .canonical_pinyin
+                        .bytes()
+                        .filter(|&ch| ch != b'\'')
+                        .count()
+                        + 2
+                        >= raw.len()
+            });
+            let at = if full_sentence {
+                result.len().min(3)
+            } else {
+                usize::from(!result.is_empty())
+            };
+            result.splice(at..at, rows);
+        }
+        // 整串仍查不到词时提供字面前缀，不吞掉未匹配的尾部。
+        if result.is_empty() {
+            result = self.literal_prefix_fallback(raw);
+        }
         self.series_cache.insert(slot.clone(), result.clone());
         // Only keys long enough for the sentence lattice carry personal scores.
         if segments.len() >= 2 || resolution.corrected.len() >= 2 {
@@ -720,9 +774,6 @@ impl QuanpinDictionary {
             alternatives,
             ALTERNATIVE_SEGMENTATION_CANDIDATE_LIMIT,
         );
-        if rows.is_empty() {
-            return result;
-        }
         let primary_full = self.query_single_path(raw, primary_segmentation, primary_segments);
         let alternative_full = rows
             .into_iter()
@@ -736,7 +787,24 @@ impl QuanpinDictionary {
                 )
             })
             .collect();
-        merge_alternative_segmentations(result, primary_full, alternative_full)
+        let mut result = merge_alternative_segmentations(result, primary_full, alternative_full);
+        // 长句同成本切分也解词网格，不能只等词库恰好收录整句。
+        // 最多三种读法，各保留一个整句，在第一页留出可选位置。
+        if raw.len() >= 8 && self.current_autocorrect_types != 0 {
+            let mut sentences = Vec::new();
+            let mut cuts: Vec<_> = alternatives.iter().collect();
+            // 同成本或近成本的长句末尾候选，先解较少音节的读法，避免漏字被拆成多个汉字。
+            cuts.sort_by_key(|cut| cut.len());
+            for cut in cuts.into_iter().take(3) {
+                let mut reading = Vec::new();
+                self.merge_sentences(&mut reading, raw, &join_segments(cut), cut);
+                sentences.extend(reading.into_iter().take(1));
+            }
+            sentences.retain(|row| !result.iter().any(|existing| existing.word == row.word));
+            let at = usize::from(!result.is_empty());
+            result.splice(at..at, sentences);
+        }
+        result
     }
 
     fn append_query_rows(result: &mut Vec<WordItem>, rows: Vec<WordItem>) {
@@ -746,6 +814,38 @@ impl QuanpinDictionary {
         }
         result.reserve(rows.len());
         result.extend(rows);
+    }
+
+    /// 只在空列表时查最长字面前缀，最多检查 64 字母，不重复运行整句纠错搜索。
+    fn literal_prefix_fallback(&mut self, raw: &str) -> Vec<WordItem> {
+        if raw.len() < 8
+            || !raw
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte == b'\'')
+            || raw.starts_with('\'')
+        {
+            return Vec::new();
+        }
+        for end in (1..raw.len().min(65)).rev() {
+            let prefix = &raw[..end];
+            if prefix.ends_with('\'') {
+                continue;
+            }
+            let cuts = cut_pinyin_by_mode(prefix, CutMode::Greedy);
+            let Some(segments) = cuts.first().filter(|cut| !cut.is_empty()) else {
+                continue;
+            };
+            let mut rows = self.query_single_path(prefix, &join_segments(segments), segments);
+            if rows.is_empty() {
+                continue;
+            }
+            for row in &mut rows {
+                // 消费长度取自用户实际键入的前缀，完整词典读音仍留在 canonical_pinyin。
+                row.pinyin = prefix.to_owned();
+            }
+            return rows;
+        }
+        Vec::new()
     }
 
     /// QD:560-730 without the Google sentence: prefix groups longest first, the lattice block, the typo sentence, sparse fallbacks.
@@ -777,7 +877,14 @@ impl QuanpinDictionary {
             Self::append_query_rows(&mut result, rows);
         }
 
-        if segments.len() >= 2 && has_only_complete_pinyin_segments(segments) {
+        let complete = has_only_complete_pinyin_segments(segments);
+        // 已有整段词库候选时，不再为同一个末尾补全构造词网格。
+        let answered_prefix = !complete && result.iter().any(|row| row.pinyin == segmentation);
+        if !answered_prefix
+            && segments.len() >= 2
+            && has_only_complete_pinyin_segments(&segments[..segments.len() - 1])
+            && crate::pinyin::syllables::is_prefix(&segments[segments.len() - 1])
+        {
             self.merge_sentences(&mut result, raw, segmentation, segments);
         }
 
@@ -1123,7 +1230,19 @@ fn cached_lattice_span(
             return cached.rows.clone();
         }
     }
-    let rows = database.query_lattice_span(span, span_limit);
+    let tail_prefix = span.split_last().is_some_and(|(tail, head)| {
+        !tail.is_empty()
+            && crate::pinyin::syllables::is_prefix(tail)
+            && !crate::pinyin::syllables::is_intact(tail)
+            && head
+                .iter()
+                .all(|part| crate::pinyin::syllables::is_intact(part))
+    });
+    let rows = if tail_prefix {
+        database.query_lattice_tail_prefix(span, span_limit)
+    } else {
+        database.query_lattice_span(span, span_limit)
+    };
     let mut key = String::with_capacity(span.iter().map(|syllable| syllable.len() + 1).sum());
     for syllable in span {
         key.push('\'');
@@ -1313,6 +1432,15 @@ fn alternative_segmentations(
     let mut seen_length = 0;
     let primary_segmentation = resolution.segmentation.as_str();
     for cut in &resolution.costlier_corrected_cuts {
+        // 带未完成尾部的长句仍需在第一页解较少音节的替代句，不能被成本档去重挡掉。
+        if raw.len() >= 8
+            && cut.last().is_some_and(|tail| {
+                crate::pinyin::syllables::is_prefix(tail)
+                    && !crate::pinyin::syllables::is_intact(tail)
+            })
+        {
+            continue;
+        }
         remember_segmentation_key(
             &mut seen,
             &mut seen_length,

@@ -4,6 +4,7 @@ pub mod dictionary;
 pub mod engine;
 #[cfg(test)]
 mod fixture;
+mod robust;
 pub mod scheme;
 pub mod series;
 pub mod typo_edges;

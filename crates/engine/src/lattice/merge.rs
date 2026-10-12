@@ -27,12 +27,18 @@ pub fn merge_lattice_candidates(
     rerankers: &mut [NeuralReranker],
     rescoring_context: &str,
 ) -> Option<TypoSentence> {
-    // Two syllables are enough since lattice_reading: a two-syllable key can miss the exact lookup and otherwise leave prefix-range rows ahead of the sentence. Abbreviated segments (g'k't) are refused so `canonical_pinyin` stays a complete pronunciation (WL:541-545).
-    if syllables.len() < 2 || !has_only_complete_pinyin_segments(syllables) {
+    // 只允许最后一个音节未打完；中间的简拼仍拒绝，词典边提供完整读音。
+    if syllables.len() < 2
+        || !has_only_complete_pinyin_segments(&syllables[..syllables.len() - 1])
+        || !crate::pinyin::syllables::is_prefix(&syllables[syllables.len() - 1])
+    {
         return None;
     }
     let graph = build_graph(syllables, lookup, options);
     let mut paths = decode_graph(&graph, options, None);
+    if !has_only_complete_pinyin_segments(syllables) {
+        paths.retain(|path| crate::pinyin::segment::is_complete_pinyin_input(&path.key));
+    }
     if paths.is_empty() {
         return None;
     }

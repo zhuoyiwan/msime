@@ -263,6 +263,31 @@ pub(super) struct Edge {
 /// Edges by start column.
 pub(super) type Graph = Vec<Vec<Edge>>;
 
+/// 原字母位置上的词边共用语言模型和回溯；不同音节数量不能带入固定切分的长度奖励。
+pub(crate) fn decode_letter_edges(
+    length: usize,
+    edges: &[TypoEdge],
+    options: &LatticeOptions<'_>,
+) -> Vec<SentencePath> {
+    let mut graph: Graph = (0..length).map(|_| Vec::new()).collect();
+    for edge in edges {
+        if edge.start >= edge.end || edge.end > length || edge.value.is_empty() {
+            continue;
+        }
+        let syllables = edge.key.split('\'').count();
+        graph[edge.start].push(Edge {
+            end: edge.end,
+            word: edge.value.clone(),
+            key: edge.key.clone(),
+            log_prob: (edge.weight.max(1) as f64).ln() - options.unigram_z.ln()
+                + 4.0 * syllables.saturating_sub(1) as f64
+                - edge.penalty,
+            typo: edge.penalty > 0.0,
+        });
+    }
+    decode_graph(&graph, options, None)
+}
+
 /// WL:110-148.
 pub(super) fn build_graph(
     syllables: &[String],

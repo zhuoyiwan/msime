@@ -34,6 +34,12 @@ pub(super) struct ConversionEdit {
 impl ConversionEdit {
     /// 首选能改字时的初始状态：读音是一个字对一个完整音节，至少两个字。整句候选按它的词切段，其余候选整个算一段。
     fn from_row(row: &WordItem) -> Option<Self> {
+        // 末尾补全可以直接选词，但尚未打完的读音不进入逐字转换。
+        if row.scheme == SchemeType::Quanpin
+            && !crate::pinyin::segment::is_complete_pinyin_input(&row.pinyin)
+        {
+            return None;
+        }
         let canonical = normalize_canonical_pinyin_for_word(&row.canonical_pinyin, &row.word);
         if canonical.is_empty() || !is_all_han(&row.word) {
             return None;

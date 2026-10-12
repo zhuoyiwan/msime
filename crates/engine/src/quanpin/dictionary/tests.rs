@@ -15,6 +15,100 @@ const WITH_DELETION: u32 = BOTH | autocorrect_type::DELETION;
 const ALL_FOUR: u32 = WITH_DELETION | autocorrect_type::INSERTION;
 const NO_FUZZY: FuzzyPinyinOptions = FuzzyPinyinOptions { rules: 0 };
 
+#[test]
+#[ignore = "需要 MSIME_REAL_DICT_ROOT 指向已校验的完整词库"]
+fn shipped_dictionary_sentence_corrections_and_latency() {
+    let root = std::path::PathBuf::from(std::env::var("MSIME_REAL_DICT_ROOT").unwrap());
+    let user = tempfile::tempdir().unwrap();
+    let paths = RuntimePaths {
+        resources: root.clone(),
+        dictionaries: root,
+        user_data: user.path().to_owned(),
+        cache: user.path().to_owned(),
+    };
+    let mut dictionary = QuanpinDictionary::new(&paths);
+    for raw in [
+        "woxiangqushangk",
+        "woxiangqusahngk",
+        "woxiangqushabgk",
+        "woxiangqushanngk",
+        "woxiangqushngk",
+    ] {
+        let start = std::time::Instant::now();
+        let rows = dictionary.query(raw, "", ALL_FOUR, NO_FUZZY);
+        eprintln!(
+            "{raw}: {:?}, {:?}",
+            start.elapsed(),
+            words(&rows).into_iter().take(10).collect::<Vec<_>>()
+        );
+        assert!(rows.iter().take(6).any(|row| row.word == "我想去上课"));
+    }
+    let known = "wixiabgqusahngk";
+    let known_rows = dictionary.query(known, "", ALL_FOUR, NO_FUZZY);
+    eprintln!(
+        "known multi-error: {:?}",
+        words(&known_rows).into_iter().take(6).collect::<Vec<_>>()
+    );
+    assert!(known_rows
+        .iter()
+        .take(6)
+        .any(|row| row.word == "我想去上课"));
+    for (raw, expected) in [
+        ("nixabgqushabgk", "你想去上课"),
+        ("wixabgqusahngke", "我想去上课"),
+    ] {
+        let rows = dictionary.query(raw, "", ALL_FOUR, NO_FUZZY);
+        eprintln!(
+            "{raw}: {:?}",
+            words(&rows).into_iter().take(6).collect::<Vec<_>>()
+        );
+        assert!(rows.iter().take(6).any(|row| row.word == expected));
+    }
+    let raw = "wixbwozhdiwnxbyak";
+    let start = std::time::Instant::now();
+    let rows = dictionary.query(raw, "", ALL_FOUR, NO_FUZZY);
+    eprintln!(
+        "multi-error cold: {:?}, {:?}",
+        start.elapsed(),
+        words(&rows).into_iter().take(6).collect::<Vec<_>>()
+    );
+    let complete: Vec<_> = rows
+        .iter()
+        .filter(|row| row.pinyin == raw && row.sentence_association)
+        .collect();
+    assert!(complete.len() >= 2, "没有完整替代句");
+    for row in complete {
+        assert!(crate::pinyin::segment::is_complete_pinyin_input(
+            &row.canonical_pinyin
+        ));
+        assert!(row.word.chars().all(crate::text::is_han));
+    }
+    let start = std::time::Instant::now();
+    let cached = dictionary.query(raw, "", ALL_FOUR, NO_FUZZY);
+    eprintln!("multi-error warm: {:?}", start.elapsed());
+    assert_eq!(words(&rows), words(&cached));
+}
+
+#[test]
+fn unsegmentable_input_keeps_a_selectable_literal_prefix() {
+    let fixture = Fixture::new();
+    fixture.insert("wo", "我", 100).insert("ni'hao", "你好", 80);
+    let mut dictionary = QuanpinDictionary::new(&fixture.paths);
+    for types in [NONE, ALL_FOUR] {
+        for (raw, expected, matched) in [
+            ("wixbwozhdiwnxbyak", "我", "w"),
+            ("nihaoiii", "你好", "nihao"),
+        ] {
+            let rows = dictionary.query(raw, "", types, NO_FUZZY);
+            let row = rows.iter().find(|row| row.word == expected);
+            assert!(row.is_some(), "{raw}: {:?}", words(&rows));
+            assert_eq!(row.unwrap().pinyin, matched);
+        }
+    }
+    assert!(dictionary.query("", "", ALL_FOUR, NO_FUZZY).is_empty());
+    assert!(dictionary.query("'iii", "", ALL_FOUR, NO_FUZZY).is_empty());
+}
+
 fn words(items: &[WordItem]) -> Vec<&str> {
     items.iter().map(|item| item.word.as_str()).collect()
 }
@@ -983,6 +1077,33 @@ fn sentence_alternatives_toggle_rebuilds_the_lists() {
         "without alternatives only the best reading is emitted"
     );
     assert!(all > one);
+}
+
+#[test]
+fn long_sentence_completes_final_initial_after_middle_typos() {
+    let fixture = Fixture::new();
+    fixture
+        .insert("wo", "我", 10000)
+        .insert("xiang", "想", 10000)
+        .insert("qu", "去", 10000)
+        .insert("wo'xiang'qu", "我想去", 20000)
+        .insert("shang'ke", "上课", 20000);
+    let mut dictionary = QuanpinDictionary::new(&fixture.paths);
+    for (raw, mask) in [
+        ("woxiangqushangk", NONE),
+        ("woxiangqushangke", NONE),
+        ("woxiangqusahngk", TRANSPOSITION),
+        ("woxiangqushabgk", NEIGHBOR),
+        ("woxiangqushanngk", ALL_FOUR),
+        ("woxiangqushngk", ALL_FOUR),
+    ] {
+        let rows = query(&mut dictionary, raw, "", mask);
+        let row = rows
+            .iter()
+            .find(|row| row.word == "我想去上课")
+            .unwrap_or_else(|| panic!("{raw}: {:?}", words(&rows)));
+        assert_eq!(row.canonical_pinyin, "wo'xiang'qu'shang'ke", "{raw}");
+    }
 }
 
 /// neural-association.patch:2667-2682: an association change resets the caches, so an online row cached before a lattice off/on round trip is gone after it, as in shuangpin.

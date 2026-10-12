@@ -55,14 +55,19 @@ pub fn resolve_series_query(
             populate_from_cuts(&mut result, cuts, "");
         } else {
             // The k-best search only reaches the end when every segment is a complete syllable, so "hauzh" (hau typo + zh jianpin) fails outright. Retry on the head without a trailing incomplete syllable, shortest tail first so the correction explains as much of the input as possible. Neighbor corrections are left out of the head: they have the widest false-positive surface, and stacking them on a speculative jianpin boundary turns deletion-shaped input into noise (shng -> sun + g -> 笋干).
-            let head_types = autocorrect_types & !autocorrect_type::NEIGHBOR;
             let mut tail_len = 1;
-            while head_types != 0 && tail_len <= 2 && tail_len < raw.len() {
+            while tail_len <= 2 && tail_len < raw.len() {
                 let (head, tail) = raw.split_at(raw.len() - tail_len);
                 tail_len += 1;
                 if !is_prefix(tail) || is_intact(tail) {
                     continue;
                 }
+                // 长句保留邻键纠错；短输入仍防止把 shng 误拆成 sun + g。
+                let head_types = if head.len() >= 8 {
+                    autocorrect_types
+                } else {
+                    autocorrect_types & !autocorrect_type::NEIGHBOR
+                };
                 let head_cuts = autocorrect_cut_kbest(head, head_types, AUTOCORRECT_CUT_KBEST);
                 if head_cuts.is_empty() {
                     continue;
@@ -70,6 +75,32 @@ pub fn resolve_series_query(
                 result.corrected_input = true;
                 populate_from_cuts(&mut result, head_cuts, tail);
                 break;
+            }
+        }
+        // 长句即使整串能勉强纠成另一种完整切分，也保留“纠错头 + 未完成尾”。
+        // shanngk 的整串路径会偏向 sha'nang'ke，不能因此漏掉 shang'k。
+        if raw.len() >= 8 && result.corrected_input {
+            for tail_len in 1..=2 {
+                let (head, tail) = raw.split_at(raw.len() - tail_len);
+                if !is_prefix(tail) || is_intact(tail) {
+                    continue;
+                }
+                let head_cuts =
+                    autocorrect_cut_kbest(head, autocorrect_types, AUTOCORRECT_CUT_KBEST);
+                let mut tails = Vec::new();
+                for cut in head_cuts {
+                    let mut parts = cut.into_syllables();
+                    parts.push(tail.to_owned());
+                    if parts != result.corrected && !tails.contains(&parts) {
+                        tails.push(parts);
+                    }
+                }
+                if !tails.is_empty() {
+                    tails.append(&mut result.alternative_corrected_cuts);
+                    tails.truncate(AUTOCORRECT_CUT_KBEST - 1);
+                    result.alternative_corrected_cuts = tails;
+                    break;
+                }
             }
         }
     }

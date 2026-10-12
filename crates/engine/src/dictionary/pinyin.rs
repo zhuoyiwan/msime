@@ -408,6 +408,46 @@ impl PinyinDatabase {
         rows
     }
 
+    /// 仅补全跨度末尾未打完的音节；前面的完整音节保持精确匹配。
+    pub fn query_lattice_tail_prefix(&self, span: &[String], limit: usize) -> Vec<DictRow> {
+        if self.connection.is_none() || span.is_empty() || limit == 0 {
+            return Vec::new();
+        }
+        let normalized: Vec<_> = span
+            .iter()
+            .map(|part| canonical_lattice_syllable(part))
+            .collect();
+        let tail = normalized[normalized.len() - 1];
+        if intact_pinyin_set().contains(tail)
+            || !prefix_pinyin_set().contains(tail)
+            || !normalized[..normalized.len() - 1]
+                .iter()
+                .all(|part| intact_pinyin_set().contains(*part))
+        {
+            return Vec::new();
+        }
+        let Some(table) = normalized[0]
+            .as_bytes()
+            .first()
+            .and_then(|initial| quanpin_table(span.len(), *initial))
+        else {
+            return Vec::new();
+        };
+        let prefix = normalized.join("'");
+        let upper = key_prefix_upper_bound(&prefix);
+        let sql = format!("SELECT key,value,weight FROM \"{table}\" WHERE key >= ? AND key < ? AND length(key)-length(replace(key, '''', '')) = {} ORDER BY weight DESC LIMIT {}",
+            span.len() - 1, sql_limit(limit));
+        let mut rows = self.rows(
+            &sql,
+            [prefix.as_str(), upper.as_str()],
+            query_capacity(limit),
+        );
+        deduplicate_by_value(&mut rows);
+        rows.sort_by_key(|row| std::cmp::Reverse(row.weight));
+        rows.truncate(limit);
+        rows
+    }
+
     /// Whether any shipped single-character table holds `han` (QQ:1017-1050).
     pub fn han_char_exists(&self, han: &str) -> bool {
         let Some(connection) = &self.connection else {
@@ -1538,6 +1578,16 @@ mod tests {
         );
         assert!(database
             .query_lattice_span(&strings(&["gun", "q"]), 32)
+            .is_empty());
+        assert_eq!(
+            values(&database.query_lattice_tail_prefix(&strings(&["gun", "q"]), 32)),
+            ["滚球", "滚起"]
+        );
+        assert!(database
+            .query_lattice_tail_prefix(&strings(&["g", "q"]), 32)
+            .is_empty());
+        assert!(database
+            .query_lattice_tail_prefix(&strings(&["gun", "qi"]), 32)
             .is_empty());
     }
 

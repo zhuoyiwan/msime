@@ -271,6 +271,21 @@ fn type_text(session: &mut Session, text: &str) {
     }
 }
 
+#[test]
+fn malformed_pinyin_prefix_selection_preserves_unmatched_letters() {
+    let fixture = Fixture::new(
+        "CREATE TABLE tbl_1_w(key TEXT, jp TEXT, value TEXT, weight INTEGER);\
+         INSERT INTO tbl_1_w VALUES('wo','w','我',100);",
+    );
+    let mut session = fixture.session();
+    type_text(&mut session, "wixbwozhdiwnxbyak");
+    assert_eq!(
+        select_word(&mut session, "我").commit.as_deref(),
+        Some("我")
+    );
+    assert_eq!(session.input.engine.request().raw_input, "ixbwozhdiwnxbyak");
+}
+
 fn words(session: &Session) -> Vec<String> {
     session
         .snapshot()
@@ -996,8 +1011,9 @@ fn typing_at_a_caret_reuses_the_editing_text_length() {
         crate::ime::personal_rerank::allocations::count(|| session.character(b'x', false));
 
     assert!(result.handled);
-    assert_eq!(
-        allocations, 206,
+    // 光标前缀新增末尾补全词网格；预算包含新候选，仍禁止复制整份编辑状态。
+    assert!(
+        allocations <= 269,
         "caret insertion allocations: {allocations}"
     );
 }
