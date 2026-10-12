@@ -135,7 +135,7 @@ final class LanClipboardStore implements LanClipboardTls.Store {
                 if(code.device().equals(local()))throw new IOException("不能配对自己");
                 if(!ip.isEmpty())LanClipboardProtocol.address(ip);
                 JSONArray peers=next.getJSONArray("peers");if(peers.length()>=8)throw new IOException("最多配对 8 台设备");
-                for(JSONObject p:peers())if(p.optString("device").equals(code.device())||p.optString("key").equals(code.key()))throw new IOException("设备已存在，请先移除后重新配对");
+                for(JSONObject p:peers())if(p.optString("device").equals(code.device())||p.optString("key").equals(code.key()))throw new IOException("设备已配对，一次扫码即可双向同步；如两端互扫后无法连接，请在两端移除配对，再只扫描一次");
                 peers.put(new JSONObject().put("device",code.device()).put("key",code.key()).put("secret",code.secret()).put("ip",ip));mutate(next);break;
             case "remove":
                 JSONArray remaining=new JSONArray();for(JSONObject p:peers())if(!p.optString("device").equals(text))remaining.put(p);else{queues.remove(p.optString("key"));connected.remove(p.optString("key"));}

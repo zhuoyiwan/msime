@@ -51,6 +51,7 @@ public final class LanClipboardPage extends DetailPage {
         Context context=requireContext();
         GroupCard intro=GroupCard.add(column,null);
         intro.note("与 zhuoyiwan 改版 Windows 输入法互通。同一局域网内分享新复制的文字，配对一次即可双向同步；换 IP 会自动发现重连。无需账号。");
+        intro.note("只需一端生成二维码，另一端扫描一次，不要互扫。如果一直等待连接，可在两端移除配对后重新单向扫码，并填入对方局域网 IP 辅助连接。");
         intro.note("开启后会同时启用本地剪贴板历史。收到的新文字可直接粘贴，也会出现在键盘「最近复制」提示中。保持通知中的同步服务开启，并将水杉设为默认输入法。");
         toggle=intro.toggle("同步系统剪贴板","在手机与电脑之间复制、粘贴文字",false,value->{Bundle b=new Bundle();b.putBoolean("enabled",value);call("enable",b,result->{
             if(value && Build.VERSION.SDK_INT>=33 && context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)
