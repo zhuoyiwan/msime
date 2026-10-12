@@ -344,11 +344,20 @@ public class DeviceSmoke extends Instrumentation {
         return await(tool(description));
     }
     protected void tapSymbol(String symbol) throws java.util.concurrent.TimeoutException {
-        // The punctuation sits on the 123 layer (the third row holds the five Chinese or English marks), and that layer's bottom-left key goes back to the letters: it reads 拼音 or ABC, so it is found by its description.
+        // 电话式数字层没有 @，从各布局共用的符号面板输入，仍检查真实编辑器及邮箱候选。
+        if ("@".equals(symbol)) {
+            AccessibilityNodeInfo layer = await(described("切换到数字和符号"));
+            if (!layer.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK))
+                throw new AssertionError("Symbol panel hold failed");
+            await(described("符号面板"));
+            tap(describedPrefix("符号分类 英文"));
+            tap(described("按键 符号 @"));
+            await(key("n").and(AccessibilityNodeInfo::isClickable));
+            return;
+        }
+        // 电话式、计算器式和传统数字行共用 #+= 标点行；按键面检查当前中文标点设置。
         tap(key("123"));
-        // A symbol key in Chinese mode wears its Chinese face whatever the engine is configured to
-        // insert -- the face follows the mode, the inserted mark follows the punctuation setting,
-        // exactly as on Apple. Accept either face and let the caller assert what was inserted.
+        tap(key("#+="));
         String chinese = app.msime.android.ChineseSymbolFaces.face(symbol, true);
         tap(key(symbol).or(key(chinese)));
         tap(described("切换到字母键盘"));

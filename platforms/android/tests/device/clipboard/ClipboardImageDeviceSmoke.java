@@ -35,8 +35,16 @@ public final class ClipboardImageDeviceSmoke extends DeviceSmoke {
         byte[] original = preferences.exists() ? Files.readAllBytes(preferences.toPath()) : null;
         long revision = original == null ? 0 : new JSONObject(new String(original, StandardCharsets.UTF_8)).getLong("revision");
         JSONObject base = new JSONObject(options.getJSONObject("preferences").toString());
+        File localSettings = new File(root, "bootstrap/state/android-settings.json");
+        byte[] originalLocal = localSettings.exists() ? Files.readAllBytes(localSettings.toPath()) : null;
         File copies = new File(getTargetContext().getCacheDir(), "clipboard-images");
         try {
+            // 此套件验收图片传输，固定标准键盘高度让小屏上的合成复制按钮可见；结束原样恢复。
+            JSONObject local = originalLocal == null
+                ? new JSONObject().put("version", 1).put("settings", new JSONObject())
+                : new JSONObject(new String(originalLocal, StandardCharsets.UTF_8));
+            local.getJSONObject("settings").put("platform.android.keyboard_height_adjustment", 0);
+            publish(localSettings, local.toString().getBytes(StandardCharsets.UTF_8));
             stage = "enable clipboard history";
             JSONObject enabled = new JSONObject().put("format_version", 1).put("revision", revision + 1)
                 .put("preferences", new JSONObject(base.toString()).put("clipboard_history", true));
@@ -84,6 +92,8 @@ public final class ClipboardImageDeviceSmoke extends DeviceSmoke {
         } finally {
             shell("am start -W -n app.msime.android/app.msime.android.home.HomeActivity");
             if (original == null) Files.deleteIfExists(preferences.toPath()); else publish(preferences, original);
+            if (originalLocal == null) Files.deleteIfExists(localSettings.toPath());
+            else publish(localSettings, originalLocal);
         }
     }
 
