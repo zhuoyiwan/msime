@@ -406,6 +406,12 @@ stage="$work/dmg-$edition"
 mkdir -p "$stage"
 ditto "$app" "$stage/$app_name"
 ln -s /Applications "$stage/Applications"
+# 改版的本机安装入口随 DMG 分发；普通签名发布的构建流程保持原样。
+if [ -f "$repo_root/platforms/macos/scripts/install-local-fork.command" ]; then
+  ditto "$repo_root/platforms/macos/scripts/install-local-fork.command" "$stage/安装 zhuoyiwan 版.command"
+  chmod +x "$stage/安装 zhuoyiwan 版.command"
+  ditto "$repo_root/platforms/macos/LOCAL-FORK-INSTALL.md" "$stage/zhuoyiwan 本机安装说明.md"
+fi
 # Dragging the app is only half the install: the input method appears once the app has been opened and its install window's 立即安装 pressed, and on macOS 27 the user then adds it in System Settings, which the app walks them through. On a first install the add dialog only lists the input method after the next login (platforms/macos/README.md), so the instructions say so for a user who goes straight to System Settings. Finder shows the app by its localised name (水杉输入法 for full, apps/desktop/src-tauri/macos/*.lproj/InfoPlist.strings; each edition's own name otherwise), so the instructions call it that rather than by its file name.
 printf '%s\n' \
   "$display_name macOS 安装说明" \

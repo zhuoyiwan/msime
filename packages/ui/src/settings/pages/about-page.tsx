@@ -132,6 +132,9 @@ export function AboutSettingsPage() {
     <SettingsPageFieldset disabled={busy} hidden={page !== "about"} ariaLabel="关于">
       <GroupList>
         <AboutHeroSection logo={logo} description={platformAboutDescription} />
+        {macosPlatform && (
+          <Row title="zhuoyiwan 改版" description="基于水杉输入法的个人二次修改版，保留原项目版权与许可。" />
+        )}
       </GroupList>
       <GroupList title="版本与更新">
         <div className={`${doc.linkRow} ${doc.versionRow}`}>
@@ -144,7 +147,13 @@ export function AboutSettingsPage() {
               </p>
             )}
           </div>
-          {updateCheckSupported && (
+          {macosPlatform ? (
+            <ActionButton
+              action={() => openExternalUrl("https://github.com/zhuoyiwan/msime-windows/releases")}
+              className={`secondary ${doc.updateButton}`}
+              label="查看改版更新"
+            />
+          ) : updateCheckSupported && (
             <ActionButton
               action={onCheckForUpdate}
               className={`secondary ${doc.updateButton}`}
