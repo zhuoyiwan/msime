@@ -87,6 +87,44 @@ fn shipped_dictionary_sentence_corrections_and_latency() {
     let cached = dictionary.query(raw, "", ALL_FOUR, NO_FUZZY);
     eprintln!("multi-error warm: {:?}", start.elapsed());
     assert_eq!(words(&rows), words(&cached));
+
+    // 宿主会传入自动切分；验证真实会话逐键输入、第一页选择和整串消费。
+    for raw in [
+        "woxiangqushanngk",
+        "wixiabgqusahngk",
+        "wixabgqusahngke",
+        "wixbwozhdiwnxbyak",
+    ] {
+        let mut options = crate::session::SessionOptions::new(paths.clone());
+        options.autocorrect_types = ALL_FOUR;
+        options.learning = false;
+        let mut session = crate::session::Session::new(options).unwrap();
+        for letter in raw.bytes() {
+            assert!(session.character(letter, false).handled);
+        }
+        let snapshot = session.snapshot();
+        let index = snapshot
+            .candidates
+            .iter()
+            .take(6)
+            .position(|row| {
+                if raw == "wixbwozhdiwnxbyak" {
+                    row.pinyin == raw && row.word.chars().all(crate::text::is_han)
+                } else {
+                    row.word == "我想去上课"
+                }
+            })
+            .unwrap_or_else(|| panic!("{raw}: {:?}", snapshot.candidates));
+        let expected = snapshot.candidates[index].word.clone();
+        assert_eq!(
+            session.select(index).commit.as_deref(),
+            Some(expected.as_str())
+        );
+        assert!(
+            session.snapshot().preedit.is_empty(),
+            "{raw}: 选词后仍有组合"
+        );
+    }
 }
 
 #[test]
@@ -1109,6 +1147,30 @@ fn long_sentence_completes_final_initial_after_middle_typos() {
             "{raw}: 整句必须消费原始输入"
         );
     }
+}
+
+#[test]
+fn invalid_automatic_segmentation_still_decodes_the_entire_input() {
+    let fixture = Fixture::new();
+    fixture
+        .insert("wo", "我", 10000)
+        .insert("xiang", "想", 10000)
+        .insert("qu", "去", 10000)
+        .insert("shang", "上", 10000)
+        .insert("ke", "课", 10000)
+        .insert("wo'xiang'qu", "我想去", 20000)
+        .insert("shang'ke", "上课", 20000);
+    let raw = "wixiabgqusahngk";
+    let mut dictionary = QuanpinDictionary::new(&fixture.paths);
+    let rows = dictionary.query(raw, raw, ALL_FOUR, NO_FUZZY);
+    assert!(rows
+        .iter()
+        .any(|row| row.pinyin == raw && row.sentence_association));
+    let manual = "wi'xiabg'qu'sahngk";
+    let rows = dictionary.query(manual, manual, ALL_FOUR, NO_FUZZY);
+    assert!(!rows
+        .iter()
+        .any(|row| row.pinyin == manual && row.sentence_association));
 }
 
 /// neural-association.patch:2667-2682: an association change resets the caches, so an online row cached before a lattice off/on round trip is gone after it, as in shuangpin.

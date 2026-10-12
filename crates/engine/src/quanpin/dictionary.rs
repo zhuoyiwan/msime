@@ -701,8 +701,12 @@ impl QuanpinDictionary {
         }
         // 原串无法完整切分时按字母位置联合解码；前缀只作为最后兜底。
         if (segments.is_empty()
-            || !has_only_complete_pinyin_segments(&segments[..segments.len() - 1]))
-            && segmentation.is_empty()
+            || !has_only_complete_pinyin_segments(&segments[..segments.len() - 1])
+            || segments
+                .last()
+                .is_some_and(|tail| !crate::pinyin::syllables::is_prefix(tail)))
+            && raw.len() >= 8
+            && !raw.contains('\'')
             && types != 0
             && self.sentence_association.word_lattice
         {
