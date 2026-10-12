@@ -68,9 +68,13 @@ CONFIG
   security import "$work/local.p12" -k "$keychain" -P "$MSIME_LOCAL_P12_PASSWORD" -T /usr/bin/codesign
   unset MSIME_LOCAL_P12_PASSWORD
   if [ "$ci_noninteractive" = 1 ]; then
+    echo "CI：配置临时钥匙串的签名密钥访问权限。"
     security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
       -k "$MSIME_LOCAL_KEYCHAIN_PASSWORD" "$keychain" >/dev/null
-    sudo -n security add-trusted-cert -d -r trustRoot -p codeSign -k "$keychain" "$work/certificate.pem"
+    echo "CI：在 runner 系统钥匙串建立证书信任。"
+    # sudo 的钥匙串会话与 runner 不同，不能从 root 会话打开用户临时钥匙串。
+    sudo -n security add-trusted-cert -d -r trustRoot -p codeSign \
+      -k /Library/Keychains/System.keychain "$work/certificate.pem"
   else
     security add-trusted-cert -r trustRoot -p codeSign -k "$keychain" "$work/certificate.pem"
   fi
