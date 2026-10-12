@@ -58,6 +58,7 @@ public final class LexiconDetailPage extends DetailPage {
 
     @Override protected void buildContent(LinearLayout column, Bundle args) {
         this.column = column;
+        renderLoading("");
         reload();
     }
 
@@ -89,13 +90,21 @@ public final class LexiconDetailPage extends DetailPage {
         boolean builtin = builtin();
         HostTask.run(this, context -> read(context, id, builtin), result -> {
             if (result == null) {
-                MsToast.show(requireContext(), DictionaryCollectionsStore.failureMessage(""));
+                renderLoading(DictionaryCollectionsStore.failureMessage(""));
                 return;
             }
             model = result;
             shown = new ArrayList<>(result.words());
             render();
         });
+    }
+
+    private void renderLoading(String failure) {
+        if (column == null) return;
+        column.removeAllViews();
+        GroupCard status = GroupCard.add(column, "词库状态");
+        status.note(failure.isEmpty() ? "正在读取词条…" : failure);
+        status.button("重新读取", null, "重试", this::reload);
     }
 
     private static Model read(Context context, String id, boolean builtin) {

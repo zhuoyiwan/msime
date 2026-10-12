@@ -16,6 +16,8 @@ Android 的应用主题分段直接写共享偏好 `theme`，软件界面和键�
 
 旧版软件没有独立配置，升级后软件默认跟随系统，原先设置的键盘模式继续保留。应用主题摘要同时显示深浅模式和配色。
 
+实际“我的/本机”页是 LocalToolsPage，应用主题入口在此页的“软件外观”组，直接打开 AppThemeSheet；不依赖改版包已排除的 AccountFragment。实际入口点击、重启持久化由 LocalExperienceDeviceSmoke 验证。旧验收直接写配置，没有覆盖真实导航入口，这项缺口单独补上。
+
 历史笔记审计：[默认键盘跟随季节配色](2026-10-08-touch-keyboard-default-follows-app-theme.md)部分重叠，保留它的默认皮肤与强调色决定；本篇只拆开深浅模式，不改变默认季节配色。检索 AppMode、settings_theme 和颜色模式的其余记录只涉及 Windows 或鸿蒙，与本次 Android 配置无直接重叠。
 
 ## Alternatives considered

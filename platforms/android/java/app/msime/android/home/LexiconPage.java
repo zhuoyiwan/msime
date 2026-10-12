@@ -45,6 +45,10 @@ import org.json.JSONObject;
 public final class LexiconPage extends DetailPage {
     private static final String BUILTIN_KIND = "pinyin";
     private static final int DISCOVER_LIMIT = 8;
+    private final android.os.Handler main = app.msime.android.MainThreadPolicy.mainHandler();
+    private int generation;
+    private boolean loading;
+    private String loadFailure = "";
 
     /** 渲染一次需要的全部数据；`builtinCount` 为负表示读不到。 */
     private record Model(DictionaryCollectionsStore.View view, long builtinCount, boolean learning, String failure) {}
@@ -64,7 +68,7 @@ public final class LexiconPage extends DetailPage {
 
     @Override protected void buildContent(LinearLayout column, Bundle args) {
         this.column = column;
-        if (model != null) render();
+        render();
         reload(false);
     }
 
@@ -73,6 +77,9 @@ public final class LexiconPage extends DetailPage {
     }
 
     @Override public void onDestroyView() {
+        generation++;
+        main.removeCallbacksAndMessages(null);
+        loading = false;
         column = null;
         installing.clear();
         super.onDestroyView();
@@ -81,10 +88,24 @@ public final class LexiconPage extends DetailPage {
     // ---- 数据 ----
 
     private void reload(boolean flush) {
+        if (loading) return;
+        loading = true;
+        loadFailure = "";
+        int request = ++generation;
+        render();
+        // 读取排在共享工作队列中；即使前面的宿主调用迟迟不返回，也保留操作与恢复入口。
+        main.postDelayed(() -> {
+            if (request != generation || column == null || !loading) return;
+            loadFailure = "词库读取耗时较长，请稍后重试；返回后也可重新打开。";
+            render();
+        }, 15_000);
         HostTask.run(this, LexiconPage::read, result -> {
+            if (request != generation) return;
+            loading = false;
+            main.removeCallbacksAndMessages(null);
             if (result == null) {
-                MsToast.show(requireContext(), DictionaryCollectionsStore.failureMessage(""));
-                if (model == null) renderUnavailable();
+                loadFailure = DictionaryCollectionsStore.failureMessage("");
+                render();
                 return;
             }
             model = result;
@@ -122,16 +143,22 @@ public final class LexiconPage extends DetailPage {
     private void render() {
         LinearLayout target = column;
         Model current = model;
-        if (target == null || current == null) return;
+        if (target == null) return;
         Context context = requireContext();
         target.removeAllViews();
 
+        if (current == null) {
+            GroupCard status = GroupCard.add(target, "词库状态");
+            status.note(loadFailure.isEmpty() ? "正在读取本机词库…" : loadFailure);
+        }
+
         GroupCard installed = GroupCard.add(target, "已安装").withDividers(58);
-        String builtinCount = current.builtinCount() < 0 ? null
+        String builtinCount = current == null || current.builtinCount() < 0 ? null
             : NumberPolicy.groupedCount(current.builtinCount());
         installed.addView(KeyboardSheets.badgeNavRow(context, "汉", "拼音词库", builtinCount, "已启用",
             ThemeColorPolicy.accent(context), () -> openDetail(DictionaryCollectionsStore.BUILTIN_PINYIN, "拼音词库")));
-        for (DictionaryCollectionsStore.Collection collection : current.view().collections()) {
+        for (DictionaryCollectionsStore.Collection collection : current == null
+                ? List.<DictionaryCollectionsStore.Collection>of() : current.view().collections()) {
             String subtitle = NumberPolicy.groupedCount(collection.entryCount())
                 + ("community".equals(collection.sourceType()) ? " · 社区" : "");
             installed.addView(KeyboardSheets.badgeNavRow(context, TextPolicy.initial(collection.name(), "词"), collection.name(),
@@ -140,7 +167,8 @@ public final class LexiconPage extends DetailPage {
                 () -> openDetail(collection.id(), collection.name())));
         }
         installed.footer("点进词库可以启用、停用和编辑词条。已启用的词库会一起参与候选。");
-        if (!current.failure().isEmpty()) installed.note(current.failure());
+        if (current != null && !current.failure().isEmpty()) installed.note(current.failure());
+        if (current != null && !loadFailure.isEmpty()) installed.note(loadFailure);
 
         GroupCard manage = GroupCard.add(target, null).withDividers(58);
         manage.addView(KeyboardSheets.actionRow(context, "+", "新建词库", this::showCreateDialog,
@@ -149,13 +177,19 @@ public final class LexiconPage extends DetailPage {
             28, 0, Ui.ROW_GAP));
         manage.addView(KeyboardSheets.actionRow(context, "↦", "导出词库", this::startExport,
             28, 0, Ui.ROW_GAP));
-        manage.addView(KeyboardSheets.actionRow(context, "↻", "刷新词库", () -> reload(true),
+        manage.addView(KeyboardSheets.actionRow(context, "↻", "刷新词库", () -> {
+            if (loading && !loadFailure.isEmpty()) {
+                MsToast.show(requireContext(), "读取仍在进行，可返回后重试");
+            } else reload(true);
+        },
             28, 0, Ui.ROW_GAP));
 
 
         GroupCard learning = GroupCard.add(target, "学习");
         InputFeatureToggle toggle = InputFeatureToggle.LEARNING;
-        learning.toggle(toggle.title(), toggle.description(), current.learning(), this::saveLearning);
+        GroupCard.Row learningRow = learning.toggle(toggle.title(), toggle.description(),
+            current == null ? toggle.enabledByDefault() : current.learning(), this::saveLearning);
+        learningRow.setEnabled(current != null);
 
         if (ManagementUi.available()) {
             GroupCard more = GroupCard.add(target, "更多");

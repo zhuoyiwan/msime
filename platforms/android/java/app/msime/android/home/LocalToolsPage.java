@@ -9,6 +9,10 @@ public final class LocalToolsPage extends DetailPage {
     @Override protected void buildContent(LinearLayout column, Bundle args) {
         GroupCard intro = GroupCard.add(column, null);
         intro.note("zhuoyiwan 改版 · 输入与数据保存在本机，设备之间通过局域网配对互通。");
+        GroupCard appearance = GroupCard.add(column, "软件外观");
+        appearance.nav("应用主题", "深色模式、跟随系统与壁纸取色（Monet）",
+            AppThemeSheet.summary(requireContext(), null),
+            () -> AppThemeSheet.show(this, null, this::refresh));
         GroupCard data = GroupCard.add(column, "本地数据");
         data.nav("前缀补全", "姓名、号码与自定义缩写", null, () -> open(PageId.PREFIX_COMPLETION));
         data.nav("剪贴板历史", "查看、搜索和管理复制过的文字", null, () -> open(PageId.CLIPBOARD_SEARCH));
@@ -19,4 +23,9 @@ public final class LocalToolsPage extends DetailPage {
         help.nav("关于", "版本与开源许可", null, () -> open(PageId.ABOUT));
     }
     private void open(PageId page) { SettingsNavigator.open(requireContext(), page, null); }
+    private void refresh() {
+        LinearLayout column = requireView().findViewById(app.msime.android.R.id.ms_detail_column);
+        column.removeAllViews();
+        buildContent(column, new Bundle());
+    }
 }
