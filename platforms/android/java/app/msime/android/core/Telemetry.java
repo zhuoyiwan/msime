@@ -91,6 +91,7 @@ public final class Telemetry {
 
     /** The keyboard was shown. Flushes at most every few hours; call on the main thread. */
     public static void inputViewShown(Context context) {
+        if (!LocalForkMode.accountServicesEnabled()) return;
         long now = System.currentTimeMillis();
         if (now - lastInputFlush < INPUT_FLUSH_INTERVAL_MILLIS) return;
         lastInputFlush = now;
@@ -100,6 +101,7 @@ public final class Telemetry {
 
     /** The keyboard process is shutting down normally (MSIMEInputService.onDestroy): queue its `session`. No network, only a small file write under the shared lock, so it runs right here once the session has begun; a begin still queued behind a flush is waited for briefly instead. */
     public static void endInputSession(Context context) {
+        if (!LocalForkMode.accountServicesEnabled()) return;
         Context app = context.getApplicationContext();
         sessionCrashRecord = null;
         Runnable task = () -> call(() -> NativeClient.telemetryEnd(directoryRequest(app)));
@@ -118,6 +120,7 @@ public final class Telemetry {
 
     /** The usage_reporting switch was saved. Turning it off clears everything queued at once rather than on the next start. */
     public static void setEnabled(Context context, boolean value) {
+        if (!LocalForkMode.accountServicesEnabled()) return;
         enabled = value && LocalForkMode.accountServicesEnabled();
         Context app = context.getApplicationContext();
         if (!value) {
@@ -237,6 +240,7 @@ public final class Telemetry {
     }
 
     private static void flush(Context app) {
+        if (!LocalForkMode.accountServicesEnabled()) return;
         JSONObject value = call(() -> NativeClient.telemetryFlush(request(app)));
         if (value != null) enabled = JsonPolicy.strictBoolean(value.opt("enabled"), enabled);
     }

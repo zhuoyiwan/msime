@@ -15,7 +15,6 @@ import app.msime.android.TextPolicy;
 import app.msime.android.VoiceConfiguration;
 import app.msime.android.VoiceProviderPolicy;
 import app.msime.android.core.InputViewValuePolicy;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -23,7 +22,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * 语音输入页：识别服务及其密钥，识别语言、自动添加标点、离线识别、启动方式，以及隐私组的「上传语音以改进识别」。
+ * 语音输入页：识别服务及其密钥、语言、标点、离线识别与启动方式。
  *
  * <p>识别服务写共享偏好的 `voice_input.asr_provider`，密钥、接口和模型写同一对象里的 `asr_token` / `asr_tokens`、`asr_app_key`、`doubao_auth_mode`、`asr_endpoint`、`asr_model`、`asr_resource_id`，键盘经共享解析读它们，这里不另存一份。切换服务和凭据分槽的规则在 {@link VoiceProviderPolicy}。密钥只在本机：设置同步只带识别语言。
  *
@@ -31,7 +30,7 @@ import org.json.JSONObject;
  *
  * <p>离线识别要用的语音运行库（libonnxruntime 与 libsherpa-onnx-c-api）在 full 版里不随安装包，是按需下载的资源包 `voice-runtime`：打开离线识别时还没有运行库就经 {@link ResourcePackService} 下载（按流量计费的网络先确认），开关下面显示下载状态；安装包自带运行库时不需要它。
  *
- * <p>「上传语音以改进识别」（本地设置的 `platform.android.voice_contribute_audio`，只在本机、不同步）默认关闭；每次从关切到开都先弹确认框说明上传什么、保存多久，用户确认后才写（P19）。
+ * <p>本改版不提供语音贡献上传；系统识别只调用设备所选的识别服务。
  */
 public final class VoicePage extends DetailPage {
     private static final String[] LANGUAGES = {"zh-cn", "yue", "en", "auto"};
@@ -52,7 +51,6 @@ public final class VoicePage extends DetailPage {
             boolean runtimeReady, @Nullable ResourcePacks.Pack runtimePack, @Nullable String resolvedProvider) {}
 
     @Nullable private LinearLayout column;
-    @Nullable private GroupCard.Row contributeRow;
     @Nullable private State lastState;
     /** 运行库下载进度变了就重画；下载结束时重读一遍安装状态。 */
     private final ResourcePackService.Listener packListener = (pack, finished) -> {
@@ -74,7 +72,6 @@ public final class VoicePage extends DetailPage {
     @Override public void onDestroyView() {
         ResourcePackService.removeListener(packListener);
         column = null;
-        contributeRow = null;
         lastState = null;
         super.onDestroyView();
     }
@@ -120,6 +117,10 @@ public final class VoicePage extends DetailPage {
         serviceGroup(target, voice, state);
 
         GroupCard recognition = GroupCard.add(target, "识别");
+        recognition.toggle("快速上屏", "最终识别文字立即输入，不等待 AI 润色；关闭后使用已配置的润色服务",
+            local.bool(AndroidLocalSettings.VOICE_QUICK_COMMIT), checked ->
+                KeyboardSheets.saveLocal(this, AndroidLocalSettings.VOICE_QUICK_COMMIT, checked,
+                    this::reload, this::reload));
         String language = InputViewValuePolicy.textOr(voice, "language", "");
         GroupCard.Row[] languageRow = new GroupCard.Row[1];
         languageRow[0] = recognition.nav("识别语言", null, languageLabel(language),
@@ -147,9 +148,7 @@ public final class VoicePage extends DetailPage {
             () -> pickTrigger(trigger, triggerRow[0]));
 
         GroupCard privacy = GroupCard.add(target, "隐私");
-        boolean contribute = local.bool(AndroidLocalSettings.VOICE_CONTRIBUTE_AUDIO);
-        contributeRow = privacy.toggle("上传语音以改进识别", "语音片段匿名处理，可随时关闭", contribute,
-            this::onContributeChanged);
+        privacy.note("不向水杉云上传语音或识别文字用于改进识别。系统识别由设备上的识别服务处理；如主动选择联网服务，录音仅交给所选服务完成识别。");
     }
 
     /** 「识别服务」组：服务选择，选了联网服务时再列出它要的密钥和可改的接口、模型。 */
@@ -341,26 +340,6 @@ public final class VoicePage extends DetailPage {
             });
         }
         sheet.show();
-    }
-
-    /** 从关切到开先确认；确认前开关回到关闭，确认后才写偏好。从开切到关直接写。 */
-    private void onContributeChanged(boolean checked) {
-        GroupCard.Row row = contributeRow;
-        if (!checked) {
-            saveLocal(AndroidLocalSettings.VOICE_CONTRIBUTE_AUDIO, false);
-            return;
-        }
-        if (row != null) row.setChecked(false);
-        new MaterialAlertDialogBuilder(requireContext())
-            .setTitle("上传语音以改进识别？")
-            .setMessage("开启后，每次语音输入的音频和识别出的文字会上传到水杉云，只用于改进语音识别。数据保存 180 天，到期自动删除；你可以随时在这里关闭。隐私模式、密码框和不允许个性化学习的输入框里不会上传。")
-            .setNegativeButton("取消", null)
-            .setPositiveButton("开启", (dialog, which) -> {
-                GroupCard.Row current = contributeRow;
-                if (current != null) current.setChecked(true);
-                saveLocal(AndroidLocalSettings.VOICE_CONTRIBUTE_AUDIO, true);
-            })
-            .show();
     }
 
     private void saveVoice(String member, Object value) {

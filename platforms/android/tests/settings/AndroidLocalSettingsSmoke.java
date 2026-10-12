@@ -75,6 +75,7 @@ public final class AndroidLocalSettingsSmoke {
         check(!settings.bool(AndroidLocalSettings.VOICE_OFFLINE_FALLBACK), "offline fallback default");
         check(!settings.bool(AndroidLocalSettings.INCOGNITO), "incognito default");
         check(!settings.bool(AndroidLocalSettings.VOICE_CONTRIBUTE_AUDIO), "contribute audio default");
+        check(settings.bool(AndroidLocalSettings.VOICE_QUICK_COMMIT), "voice quick commit default");
         check(settings.integer(AndroidLocalSettings.KEYBOARD_HEIGHT_ADJUSTMENT) == 0, "height default");
         check(!settings.has(AndroidLocalSettings.KEYBOARD_HEIGHT_ADJUSTMENT), "height is not explicit by default");
         check(!settings.bool(AndroidLocalSettings.DEVELOPER_DEBUG_OVERLAY), "overlay default");

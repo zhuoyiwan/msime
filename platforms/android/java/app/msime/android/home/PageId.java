@@ -48,7 +48,7 @@ public enum PageId {
     VOICE("VoicePage", "语音输入", HostDeepLink.TAB_SETTINGS,
         "识别服务", "鉴权方式", "App ID", "API Key", "密钥", "识别接口", "资源 ID", "模型", "接口地址",
         "豆包", "SiliconFlow", "OpenAI", "Groq", "EveryAPI", "Mistral", "百炼",
-        "识别", "识别语言", "自动添加标点", "离线识别", "启动方式", "长按空格", "隐私", "上传语音以改进识别"),
+        "识别", "快速上屏", "识别语言", "自动添加标点", "离线识别", "启动方式", "长按空格", "隐私"),
     HANDWRITING("HandwritingPage", "手写输入", HostDeepLink.TAB_SETTINGS,
         "书写", "书写模式", "叠写", "识别等待时间", "识别后显示拼音", "笔迹", "笔迹颜色", "笔迹粗细"),
     DEVELOPER("DeveloperPage", "开发者选项", HostDeepLink.TAB_SETTINGS,

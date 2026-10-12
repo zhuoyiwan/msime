@@ -27,6 +27,17 @@ public final class PlatformSpeechPolicy {
 
     private PlatformSpeechPolicy() {}
 
+    /** 设置中的 auto 不是 BCP-47 语言；系统识别使用设备语言，并把常用简称补为识别服务接受的标签。 */
+    public static String languageTag(String requested, String deviceLanguage) {
+        String value = requested == null ? "auto" : requested.trim().replace('_', '-');
+        if (value.isEmpty() || "auto".equalsIgnoreCase(value)) value = deviceLanguage;
+        if (value == null || !value.matches("[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8}){0,4}")) return "zh-CN";
+        if ("en".equalsIgnoreCase(value)) return "en-US";
+        if ("zh".equalsIgnoreCase(value)) return "zh-CN";
+        if ("yue".equalsIgnoreCase(value)) return "yue-Hant-HK";
+        return java.util.Locale.forLanguageTag(value).toLanguageTag();
+    }
+
     /**
      * 一个错误码对应的提示：原因后紧跟「（错误码 N）」，识别服务自身的故障再接上 {@link #ALTERNATIVES}，整句不超过 {@link #MAX_LENGTH}。
      *

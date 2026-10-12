@@ -184,7 +184,7 @@ public final class VoiceRecognitionActivity extends Activity {
             intent.putExtra(EXTRA_STREAM_DDC, streaming.ddc());
             intent.putExtra(EXTRA_STREAM_BOOSTING, streaming.boostingTableId());
         }
-        if (polish != null) {
+        if (polish != null && !AndroidLocalSettings.load(context).bool(AndroidLocalSettings.VOICE_QUICK_COMMIT)) {
             intent.putExtra(EXTRA_POLISH_ENDPOINT, polish.endpoint());
             intent.putExtra(EXTRA_POLISH_MODEL, polish.model());
             intent.putExtra(EXTRA_POLISH_TOKEN, polish.token());
@@ -325,7 +325,13 @@ public final class VoiceRecognitionActivity extends Activity {
         if (recognizer != null) return;
         showRecordingControls();
         recordingHint.setText("说完后稍停即可自动识别；点「完成」立即结束，「取消」会丢弃这次录音。");
-        recognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        try {
+            recognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        } catch (RuntimeException error) {
+            fail("系统语音识别服务无法启动");
+            finishRequest();
+            return;
+        }
         recognizer.setRecognitionListener(new RecognitionListener() {
             @Override public void onReadyForSpeech(Bundle params) { }
             @Override public void onBeginningOfSpeech() { }
@@ -335,7 +341,7 @@ public final class VoiceRecognitionActivity extends Activity {
             @Override public void onError(int error) {
                 if (!finished) {
                     // 带上错误码：同一句「未返回结果」分不出网络、权限、没听到声音还是服务不可用（#5553）。
-                    if (!stopping) fail(PlatformSpeechPolicy.message(error, recognizerLabel(VoiceRecognitionActivity.this)));
+                    fail(PlatformSpeechPolicy.message(error, recognizerLabel(VoiceRecognitionActivity.this)));
                     finishRequest();
                 }
             }
@@ -350,14 +356,19 @@ public final class VoiceRecognitionActivity extends Activity {
                     return;
                 }
                 // 服务报了成功却没有文字：和键盘里一样说清楚，不再悄无声息地关掉窗口（#5553）。
-                if (!stopping) fail(PlatformSpeechPolicy.emptyResult());
+                fail(PlatformSpeechPolicy.emptyResult());
                 finishRequest();
             }
             @Override public void onPartialResults(Bundle partialResults) { }
             @Override public void onEvent(int eventType, Bundle params) { }
         });
-        recognizer.startListening(recognitionIntent(getPackageName(),
-            getIntent().getStringExtra(EXTRA_LANGUAGE), false));
+        try {
+            recognizer.startListening(recognitionIntent(getPackageName(),
+                getIntent().getStringExtra(EXTRA_LANGUAGE), false));
+        } catch (RuntimeException error) {
+            fail("系统语音识别服务无法启动");
+            finishRequest();
+        }
     }
 
     /**
@@ -632,7 +643,8 @@ public final class VoiceRecognitionActivity extends Activity {
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
             RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, safeLanguage(language));
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE,
+            PlatformSpeechPolicy.languageTag(language, Locale.getDefault().toLanguageTag()));
         intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
         intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "水杉语音输入");
         if (callingPackage != null) intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, callingPackage);
@@ -641,11 +653,11 @@ public final class VoiceRecognitionActivity extends Activity {
     }
 
     private static String safeLanguage(String language) {
-        if (TextPolicy.boundedNonEmpty(language, VoiceContributionApi.MAX_METADATA_FIELD_LENGTH)) {
-            Locale locale = Locale.forLanguageTag(language.replace('_', '-'));
+        if (TextPolicy.boundedNonEmpty(language, 64)) {
+            java.util.Locale locale = java.util.Locale.forLanguageTag(language.replace('_', '-'));
             if (!locale.getLanguage().isEmpty()) return locale.toLanguageTag();
         }
-        String fallback = Locale.getDefault().toLanguageTag();
+        String fallback = java.util.Locale.getDefault().toLanguageTag();
         return fallback.isEmpty() ? "zh-CN" : fallback;
     }
 }

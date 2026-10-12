@@ -30,10 +30,10 @@ import org.json.JSONObject;
  *
  * <p>系统识别服务以前一律走识别窗口：窗口抢走焦点，键盘随之收起，屏幕上只剩对话框主题的灰色蒙层，看不到任何正在录音的提示，结果还要再到语音结果面板里手动插入（#5553）。键盘可见时系统给输入法进程前台的麦克风能力，本机模型与豆包也是在这里录音的，所以系统识别服务同样留在键区里。
  *
- * <p>`voice_input.offline_fallback` 打开、没有网络且 `voice_input.asr_model_path` 指向已安装的本机模型时，改用本机识别。没有麦克风权限时交回 Activity 去申请。识别结束且隐私判断允许时记语音时长（`record_voice`）；`voice_input.contribute_audio` 打开、隐私判断允许且不是密码框时，经 {@link VoiceContributionApi} 上传这次的音频与识别文本。
+ * <p>没有麦克风权限时交回 Activity 去申请；隐私判断允许时只在本机记语音时长。本改版不留存贡献音频、不上传识别文字用于训练。
  */
 final class ImeVoiceEntry {
-    /** 系统识别服务在语音时长统计与贡献里用的 provider 名。 */
+    /** 系统识别服务在本机语音时长统计里用的 provider 名。 */
     static final String PLATFORM_PROVIDER = "system";
     /** 「已识别：…」停留的时间。 */
     static final long DONE_NOTICE_MILLIS = 1200;
@@ -131,15 +131,14 @@ final class ImeVoiceEntry {
         String provider = engine == Engine.LOCAL ? LocalAsrPolicy.PROVIDER : DoubaoAsrPolicy.PROVIDER;
         String rawLanguage = JsonPolicy.strictString(voice.opt("language"));
         final String language = rawLanguage == null ? "zh-CN" : rawLanguage;
-        boolean contribute = s.localSettings.bool(AndroidLocalSettings.VOICE_CONTRIBUTE_AUDIO) && s.imePrivacyGate.contributesVoice()
-            && !EditorPolicy.password(s.editorInputType);
         // 记下开始聆听时的输入位置；结果出来时位置变了就不直接上屏。
         s.captureVoiceTarget();
         show(keyArea);
         long session = ++generation;
         long startedAt = SystemClock.uptimeMillis();
         recognizing = true;
-        VoiceRecognitionActivity.Polish polish = configured.polish();
+        VoiceRecognitionActivity.Polish polish = s.localSettings.bool(AndroidLocalSettings.VOICE_QUICK_COMMIT)
+            ? null : configured.polish();
         VoiceRecognitionActivity.Streaming stream = configured.streaming();
         if (engine == Engine.PLATFORM) {
             if (startPlatform(session, startedAt, language, polish)) return true;
@@ -150,10 +149,8 @@ final class ImeVoiceEntry {
         if (engine == Engine.LOCAL) {
             LocalAsrRecognizer.watchMemory(s);
             local = new LocalAsrRecognizer();
-            local.retainAudio(contribute);
         } else {
             streaming = new DoubaoRecognizer();
-            streaming.retainAudio(contribute);
         }
         LocalAsrRecognizer runningLocal = local;
         DoubaoRecognizer runningStream = streaming;
@@ -237,7 +234,7 @@ final class ImeVoiceEntry {
         if (listening != null) listening.setHint("正在识别…");
     }
 
-    /** 键盘服务销毁：停掉识别，并让排队中的语音时长与贡献上传跑完后结束线程。 */
+    /** 键盘服务销毁：停掉识别，并完成本机语音时长记录。 */
     void shutdown() {
         cancel();
         worker.shutdown();
@@ -393,10 +390,6 @@ final class ImeVoiceEntry {
             return;
         }
         if (s.imePrivacyGate.recordsVoice()) recordVoice(elapsedMillis);
-        if (pcm != null && pcm.length > 0 && s.imePrivacyGate.contributesVoice()
-                && !EditorPolicy.password(s.editorInputType)) {
-            contribute(pcm, text, language, provider);
-        }
         if (listening != null) {
             listening.resetLevel();
             listening.setText("识别完成");
@@ -432,35 +425,6 @@ final class ImeVoiceEntry {
                     NativeClient.typingStatistics(request);
                 } catch (RuntimeException | LinkageError error) {
                     ImeLog.w("Voice duration not recorded");
-                }
-            });
-        } catch (RejectedExecutionException ignored) {
-            // 键盘正在退出。
-        }
-    }
-
-    private void contribute(byte[] pcm, String transcript, String language, String provider) {
-        byte[] wav = WavAudio.wrap(pcm, pcm.length, WavAudio.SAMPLE_RATE);
-        if (wav == null) return;
-        String version;
-        try {
-            version = s.getPackageManager().getPackageInfo(s.getPackageName(), 0).versionName;
-        } catch (PackageManager.NameNotFoundException error) {
-            return;
-        }
-        VoiceContributionApi.Contribution contribution = new VoiceContributionApi.Contribution(language, provider,
-            VoiceContributionApi.durationMillis(pcm.length), transcript, version == null ? "" : version, wav);
-        if (!VoiceContributionApi.valid(contribution)) return;
-        final long lifecycleGeneration = s.inputLifecycleGeneration();
-        try {
-            worker.execute(() -> {
-                if (lifecycleGeneration != s.inputLifecycleGeneration()
-                        || !s.imePrivacyGate.contributesVoice()
-                        || !AndroidLocalSettings.load(s).bool(AndroidLocalSettings.VOICE_CONTRIBUTE_AUDIO)) return;
-                try {
-                    new VoiceContributionApi(new CloudApi(s)).upload(contribution);
-                } catch (CloudApi.Failure | RuntimeException error) {
-                    ImeLog.w("Voice contribution not uploaded");
                 }
             });
         } catch (RejectedExecutionException ignored) {

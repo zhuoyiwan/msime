@@ -5342,13 +5342,14 @@ public final class MSIMEInputService extends InputMethodService {
     }
 
     void captureVoiceTarget() {
-        voiceTarget = new EditorContextSnapshot(connection, editorContextRevision, editorContext(true),
-            selectedEditorText(), editorContext(false));
+        VoiceEditorContext.Value context = VoiceEditorContext.read(connection);
+        voiceTarget = context == null ? null : context.snapshot(connection, editorContextRevision);
     }
 
     boolean voiceTargetMatches() {
-        return voiceTarget != null && voiceTarget.matches(connection, editorContextRevision,
-            editorContext(true), selectedEditorText(), editorContext(false));
+        if (voiceTarget == null) return false;
+        VoiceEditorContext.Value context = VoiceEditorContext.read(connection);
+        return context != null && context.matches(voiceTarget, connection, editorContextRevision);
     }
 
     /** 键盘内识别的结果放不进原来的位置时，先存进语音结果，由用户在结果面板里决定插到哪儿。 */

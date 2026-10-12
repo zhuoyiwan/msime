@@ -60,9 +60,9 @@ android {
         minSdk = 28
         targetSdk = 35
         // Grows with every release, as the platform requires for an update to install: 0.1.0 is 1000, 1.2.3 is 1002003.
-        // r5 同证书覆盖安装可保留本地数据与配对。
-        versionCode = releaseVersionParts[0] * 1_000_000 + releaseVersionParts[1] * 1_000 + releaseVersionParts[2] + 4
-        versionName = "$releaseVersion-zhuoyiwan-r5"
+        // r6 同证书覆盖安装可保留本地数据与配对。
+        versionCode = releaseVersionParts[0] * 1_000_000 + releaseVersionParts[1] * 1_000 + releaseVersionParts[2] + 5
+        versionName = "$releaseVersion-zhuoyiwan-r6"
         ndk { abiFilters += nativeAbis }
     }
 
@@ -76,7 +76,8 @@ android {
             "app/msime/android/home/SignIn.java", "app/msime/android/home/LoginSheet.java",
             "app/msime/android/home/ChatFragment.java", "app/msime/android/home/CloudClipboardPage.java",
             "app/msime/android/home/CloudSync.java", "app/msime/android/account/GoogleSignInFlow.java",
-            "app/msime/android/account/AccountSessionProvider.java"
+            "app/msime/android/account/AccountSessionProvider.java",
+            "app/msime/android/voice/VoiceContributionApi.java"
         ))
         res.setSrcDirs(listOf(hostRoot.resolve("res")))
         // The verified dictionary and the native licence notices are staged by build-apk.sh.

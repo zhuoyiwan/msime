@@ -67,6 +67,8 @@ public final class AndroidLocalSettings {
     // ---- 只在本机的键 ----
     public static final String INCOGNITO = "platform.android.incognito";
     public static final String VOICE_CONTRIBUTE_AUDIO = "platform.android.voice_contribute_audio";
+    /** 最终识别文字直接上屏，不等待联网润色，默认开启。 */
+    public static final String VOICE_QUICK_COMMIT = "platform.android.voice_quick_commit";
     /** 「滑行输入」（{@link GlideTypingPolicy}），默认关。服务端的同步字段表还没有这个键，所以先只在本机。 */
     public static final String GLIDE_TYPING = "platform.android.glide_typing";
     /** 中英键按「中 → 英 → 已启用的其他语言键盘 → 中」轮换（{@link LanguageKeyCyclePolicy}，#6648），默认关，关着时只切中英。服务端的同步字段表还没有这个键，所以先只在本机。 */
@@ -201,6 +203,7 @@ public final class AndroidLocalSettings {
 
         bool(INCOGNITO, false, false);
         bool(VOICE_CONTRIBUTE_AUDIO, false, false);
+        bool(VOICE_QUICK_COMMIT, true, false);
         bool(GLIDE_TYPING, false, false);
         bool(LANGUAGE_KEY_CYCLE, false, false);
         choice(CLIPBOARD_COLUMNS, ClipboardLayoutPolicy.ONE_COLUMN, false,
