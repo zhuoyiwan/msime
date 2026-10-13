@@ -33,7 +33,7 @@ import org.json.JSONObject;
 /**
  * 关于页「检查更新」和每天一次的自动更新共用的一层：查维护者 GitHub 的发行版列表、按更新通道挑出比当前版本新的改版 ARM64 APK，下载到 `cache/updates/`，并在交给系统安装器之前核对 SHA-256 与签名证书。
  *
- * <p>生产查询使用 {@link #FORK_RELEASES_URL}，资产由 {@link ForkUpdatePolicy} 检查维护者路径、平台名称、大小与 GitHub 摘要；不把改版升级回上游。旧列表解析函数仅保留兼容及独立测试。
+ * <p>生产查询优先使用 {@link #FORK_FEED_URL}，失败回退 {@link #FORK_RELEASES_URL}；资产由 {@link ForkUpdatePolicy} 检查维护者路径、平台名称、大小与 GitHub 摘要。旧列表解析函数仅保留兼容及独立测试。
  *
  * <p>改版直接从 GitHub 下载，不使用上游镜像。摘要防传输损坏，安装前 {@link #verifyArchive} 继续要求包名相同、版本号更高、签名证书与当前安装一致。
  *
@@ -44,13 +44,14 @@ import org.json.JSONObject;
 public final class UpdateApi {
     public static final String RELEASES_URL = "https://msime.app/api/releases?platform=android";
     public static final String FORK_RELEASES_URL = "https://api.github.com/repos/zhuoyiwan/msime-windows/releases?per_page=30";
+    public static final String FORK_FEED_URL = "https://raw.githubusercontent.com/zhuoyiwan/msime-windows/zhuoyiwan-updates/releases.json";
     /** 发布页下载地址的前缀，后面接 `<tag>/<资产名>`。 */
     public static final String DOWNLOAD_PREFIX = "https://github.com/metasequoiaime/msime/releases/download/";
     /** 国内镜像（Cloudflare R2，见 msime-web README「国内镜像」）：`<前缀><原地址>`，没缓存过的文件由镜像从 GitHub 取一次后留存。国内连 GitHub 发布页常常只有几十 KB/s。 */
     public static final String MIRROR_PREFIX = "https://dl.msime.app/gh/";
     /** 允许连接的主机：msime.app 的发行版列表，国内镜像，GitHub 发布页和它重定向到的两个资产域名。 */
     public static final Set<String> HOSTS = Set.of(
-        "api.github.com", "msime.app", "dl.msime.app", "github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com");
+        "api.github.com", "raw.githubusercontent.com", "msime.app", "dl.msime.app", "github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com");
     /** 下载到应用缓存下的这个子目录，FileProvider 的 `updates` 路径指向它。 */
     public static final String CACHE_DIRECTORY = "updates";
     static final int MAX_LIST_BYTES = 2 * 1024 * 1024;
@@ -293,6 +294,13 @@ public final class UpdateApi {
 
     /** 查更新：有比当前版本新的发布时返回它，否则返回 null。 */
     public Update check(Channel channel, String edition, String currentVersion) throws Failure {
+        // 静态清单由发布流程校验资产后生成，不依赖共享出口每小时 60 次的匿名 API 额度。
+        try {
+            byte[] feed = fetch(FORK_FEED_URL, MAX_LIST_BYTES);
+            return ForkUpdatePolicy.pick(new String(feed, StandardCharsets.UTF_8), channel, edition, currentVersion);
+        } catch (Failure unavailable) {
+            // 清单不可达或尚未发布时，仍尝试原 GitHub API，不改变资产与签名校验。
+        }
         byte[] body = fetch(FORK_RELEASES_URL, MAX_LIST_BYTES);
         return ForkUpdatePolicy.pick(new String(body, StandardCharsets.UTF_8), channel, edition, currentVersion);
     }

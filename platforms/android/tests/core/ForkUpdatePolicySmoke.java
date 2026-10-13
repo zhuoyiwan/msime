@@ -3,6 +3,10 @@ import app.msime.android.PlatformSpeechPolicy;
 import app.msime.android.UpdateApi;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /** 改版资产筛选、修订号和系统识别语言的回归。 */
 public final class ForkUpdatePolicySmoke {
@@ -20,6 +24,29 @@ public final class ForkUpdatePolicySmoke {
         check(ForkUpdatePolicy.pick(data, UpdateApi.Channel.STABLE, "full", "0.3.1-zhuoyiwan-r5") == null);
         check(ForkUpdatePolicy.pick(data, UpdateApi.Channel.PREVIEW, "full", "0.3.1-zhuoyiwan-r6") == null);
         check(ForkUpdatePolicy.pick(data, UpdateApi.Channel.PREVIEW, "wubi", "0.3.1-zhuoyiwan-r5") == null);
+        List<String> requests = new ArrayList<>();
+        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+        UpdateApi staticFirst = new UpdateApi(url -> {
+            requests.add(url);
+            return new UpdateApi.Exchange(url.equals(UpdateApi.FORK_FEED_URL) ? 200 : 403,
+                null, bytes.length, new ByteArrayInputStream(bytes));
+        });
+        check(staticFirst.check(UpdateApi.Channel.PREVIEW, "full", "0.3.1-zhuoyiwan-r5") != null);
+        check(requests.equals(List.of(UpdateApi.FORK_FEED_URL)));
+        requests.clear();
+        UpdateApi fallback = new UpdateApi(url -> {
+            requests.add(url);
+            return new UpdateApi.Exchange(url.equals(UpdateApi.FORK_FEED_URL) ? 404 : 200,
+                null, bytes.length, new ByteArrayInputStream(bytes));
+        });
+        check(fallback.check(UpdateApi.Channel.PREVIEW, "full", "0.3.1-zhuoyiwan-r5") != null);
+        check(requests.equals(List.of(UpdateApi.FORK_FEED_URL, UpdateApi.FORK_RELEASES_URL)));
+        UpdateApi unavailable = new UpdateApi(url -> new UpdateApi.Exchange(403, null, 0,
+            new ByteArrayInputStream(new byte[0])));
+        boolean failed = false;
+        try { unavailable.check(UpdateApi.Channel.PREVIEW, "full", "0.3.1-zhuoyiwan-r5"); }
+        catch (UpdateApi.Failure expected) { failed = true; }
+        check(failed);
         for (String invalid : new String[] {"https://evil.example/x", ForkUpdatePolicy.DOWNLOAD_PREFIX + "other/x.apk"}) {
             asset.put("browser_download_url", invalid);
             check(ForkUpdatePolicy.pick(new JSONArray().put(release).toString(), UpdateApi.Channel.PREVIEW,

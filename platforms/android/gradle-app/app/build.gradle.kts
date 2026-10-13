@@ -60,9 +60,9 @@ android {
         minSdk = 28
         targetSdk = 35
         // Grows with every release, as the platform requires for an update to install: 0.1.0 is 1000, 1.2.3 is 1002003.
-        // r6 同证书覆盖安装可保留本地数据与配对。
-        versionCode = releaseVersionParts[0] * 1_000_000 + releaseVersionParts[1] * 1_000 + releaseVersionParts[2] + 5
-        versionName = "$releaseVersion-zhuoyiwan-r6"
+        // r7 同证书覆盖安装可保留本地数据与配对。
+        versionCode = releaseVersionParts[0] * 1_000_000 + releaseVersionParts[1] * 1_000 + releaseVersionParts[2] + 6
+        versionName = "$releaseVersion-zhuoyiwan-r7"
         ndk { abiFilters += nativeAbis }
     }
 
