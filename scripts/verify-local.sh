@@ -91,8 +91,8 @@ fi
 
 failed=0
 new_failures=""
-observed_wine="$(mktemp)"
-collected="$(mktemp)"
+observed_wine="$(mktemp)" || exit 1
+collected="$(mktemp)" || { rm -f -- "$observed_wine"; exit 1; }
 # One EXIT trap for every temp file and whichever build lock this run holds; the lock sections set and clear held_lock instead of replacing the trap.
 held_lock=""
 # shellcheck disable=SC2317  # reached through the trap
